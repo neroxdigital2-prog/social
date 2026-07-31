@@ -1,0 +1,476 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum Plan {
+  GRATIS
+  PRO
+  AGENCIA
+}
+
+model User {
+  id               String    @id @default(cuid())
+  name             String
+  email            String    @unique
+  passwordHash     String
+  plan             Plan      @default(GRATIS)
+  stripeCustomerId String?
+  empresas         Empresa[]
+  datosFiscales    DatosFiscales?
+  facturas         Factura[]
+  agenciasPropias  Agencia[]        @relation("AgenciaOwner")
+  membresias       MiembroAgencia[] @relation("MiembroDeAgencia")
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+}
+
+model Empresa {
+  id                     String   @id @default(cuid())
+  nombre                 String
+  sector                 String
+  ciudad                 String
+  servicios              Json
+  web                    String?
+  whatsapp               String?
+  whatsappPhoneNumberId  String?
+  metaAdAccountId        String?
+  colorPrimario          String   @default("#6D28D9")
+  logoUrl                String?
+  userId                 String
+  user                   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  agenciaId              String?
+  agencia                Agencia? @relation(fields: [agenciaId], references: [id])
+  publicaciones          Publicacion[]
+  redesConectadas        RedConectada[]
+  leads                  Lead[]
+  conversacionesWhatsApp ConversacionWhatsApp[]
+  servicios_agenda       Servicio[]
+  disponibilidad         DisponibilidadHorario[]
+  citas                  Cita[]
+  solicitudesResena      SolicitudResena[]
+  campanasEmail          CampanaEmail[]
+  comentariosGestionados ComentarioGestionado[]
+  webhooksSalientes      WebhookSaliente[]
+  auditoriasWeb          AuditoriaWeb[]
+  palabrasClave          PalabraClave[]
+  campanasAds            CampanaAds[]
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+}
+
+enum TipoPublicacion {
+  INFORMATIVA
+  CONSEJO
+  CASO_EXITO
+  ANTES_DESPUES
+  PROMOCION
+  PREGUNTA_FRECUENTE
+  NOTICIA_SECTOR
+  CURIOSIDAD
+  MITO_REALIDAD
+  TESTIMONIO
+  ENCUESTA
+  LLAMADA_ACCION
+}
+
+enum EstadoPublicacion {
+  BORRADOR
+  APROBADA
+  PROGRAMADA
+  PUBLICADA
+  RECHAZADA
+}
+
+model Publicacion {
+  id               String            @id @default(cuid())
+  empresaId        String
+  empresa          Empresa           @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  tipo             TipoPublicacion
+  titulo           String
+  texto            String            @db.Text
+  hashtags         Json
+  imagenPrompt     String            @db.Text
+  imagenUrl        String?
+  videoUrl         String?
+  videoPrompt      String?
+  estado           EstadoPublicacion @default(BORRADOR)
+  fechaProgramada  DateTime?
+  publicacionesRed PublicacionRed[]
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+}
+
+enum RedSocial {
+  FACEBOOK
+  INSTAGRAM
+  LINKEDIN
+  TIKTOK
+  GOOGLE
+}
+
+model RedConectada {
+  id                String    @id @default(cuid())
+  empresaId         String
+  empresa           Empresa   @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  red               RedSocial
+  accessToken       String    @db.Text
+  refreshToken      String?   @db.Text
+  expiraEn          DateTime?
+  cuentaExterna     String
+  cuentaSecundaria  String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  @@unique([empresaId, red])
+}
+
+model PublicacionRed {
+  id             String       @id @default(cuid())
+  publicacionId  String
+  publicacion    Publicacion  @relation(fields: [publicacionId], references: [id], onDelete: Cascade)
+  red            RedSocial
+  postIdExterno  String?
+  publicadoEn    DateTime?
+  error          String?      @db.Text
+  createdAt      DateTime     @default(now())
+}
+
+enum EstadoLead {
+  NUEVO
+  CONTACTADO
+  CALIFICADO
+  PROPUESTA
+  GANADO
+  PERDIDO
+}
+
+enum OrigenLead {
+  MANUAL
+  WHATSAPP
+  FORMULARIO_WEB
+  RED_SOCIAL
+  REFERIDO
+  OTRO
+}
+
+model Lead {
+  id             String            @id @default(cuid())
+  empresaId      String
+  empresa        Empresa           @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  nombre         String
+  email          String?
+  telefono       String?
+  empresaCliente String?
+  origen         OrigenLead        @default(MANUAL)
+  estado         EstadoLead        @default(NUEVO)
+  valorEstimado  Float?
+  notas          String?           @db.Text
+  interacciones  InteraccionLead[]
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+}
+
+enum TipoInteraccion {
+  LLAMADA
+  EMAIL
+  WHATSAPP
+  REUNION
+  NOTA
+  CAMBIO_ESTADO
+}
+
+model InteraccionLead {
+  id        String          @id @default(cuid())
+  leadId    String
+  lead      Lead            @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  tipo      TipoInteraccion
+  contenido String          @db.Text
+  createdAt DateTime        @default(now())
+}
+
+enum RolMensaje {
+  USUARIO
+  BOT
+  HUMANO
+}
+
+model ConversacionWhatsApp {
+  id             String            @id @default(cuid())
+  empresaId      String
+  empresa        Empresa           @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  telefono       String
+  nombreContacto String?
+  leadId         String?
+  modoHumano     Boolean           @default(false)
+  mensajes       MensajeWhatsApp[]
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  @@unique([empresaId, telefono])
+}
+
+model MensajeWhatsApp {
+  id             String                @id @default(cuid())
+  conversacionId String
+  conversacion   ConversacionWhatsApp  @relation(fields: [conversacionId], references: [id], onDelete: Cascade)
+  rol            RolMensaje
+  contenido      String                @db.Text
+  createdAt      DateTime              @default(now())
+}
+
+model Servicio {
+  id          String   @id @default(cuid())
+  empresaId   String
+  empresa     Empresa  @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  nombre      String
+  duracionMin Int
+  precio      Float?
+  activo      Boolean  @default(true)
+  citas       Cita[]
+  createdAt   DateTime @default(now())
+}
+
+model DisponibilidadHorario {
+  id         String  @id @default(cuid())
+  empresaId  String
+  empresa    Empresa @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  diaSemana  Int
+  horaInicio String
+  horaFin    String
+
+  @@unique([empresaId, diaSemana])
+}
+
+enum EstadoCita {
+  PENDIENTE
+  CONFIRMADA
+  CANCELADA
+  COMPLETADA
+  NO_ASISTIO
+}
+
+model Cita {
+  id                 String            @id @default(cuid())
+  empresaId          String
+  empresa            Empresa           @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  servicioId         String
+  servicio           Servicio          @relation(fields: [servicioId], references: [id])
+  leadId             String?
+  nombreCliente      String
+  telefono           String
+  email              String?
+  fechaHora          DateTime
+  estado             EstadoCita        @default(PENDIENTE)
+  notas              String?           @db.Text
+  solicitudesResena  SolicitudResena[]
+  createdAt          DateTime          @default(now())
+}
+
+enum EstadoSolicitudResena {
+  ENVIADA
+  RESPONDIDA
+  IGNORADA
+}
+
+model SolicitudResena {
+  id         String                @id @default(cuid())
+  empresaId  String
+  empresa    Empresa               @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  citaId     String?
+  cita       Cita?                 @relation(fields: [citaId], references: [id])
+  telefono   String
+  estado     EstadoSolicitudResena @default(ENVIADA)
+  puntuacion Int?
+  comentario String?               @db.Text
+  createdAt  DateTime              @default(now())
+}
+
+enum EstadoCampana {
+  BORRADOR
+  ENVIANDO
+  ENVIADA
+}
+
+model CampanaEmail {
+  id            String        @id @default(cuid())
+  empresaId     String
+  empresa       Empresa       @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  asunto        String
+  contenido     String        @db.Text
+  estado        EstadoCampana @default(BORRADOR)
+  enviadosOk    Int           @default(0)
+  enviadosError Int           @default(0)
+  createdAt     DateTime      @default(now())
+}
+
+enum PlataformaComentario {
+  FACEBOOK
+  INSTAGRAM
+}
+
+model ComentarioGestionado {
+  id               String                @id @default(cuid())
+  empresaId        String
+  empresa          Empresa               @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  plataforma       PlataformaComentario
+  comentarioId     String                @unique
+  autorNombre      String?
+  autorId          String?
+  textoOriginal    String                @db.Text
+  respuestaEnviada String?               @db.Text
+  leadId           String?
+  createdAt        DateTime              @default(now())
+}
+
+model DatosFiscales {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  razonSocial     String
+  nif             String
+  direccion       String
+  ciudad          String
+  codigoPostal    String
+  pais            String   @default("España")
+  email           String
+  siguienteNumero Int      @default(1)
+  updatedAt       DateTime @updatedAt
+}
+
+enum EstadoFactura {
+  BORRADOR
+  EMITIDA
+  PAGADA
+  VENCIDA
+  ANULADA
+}
+
+model Factura {
+  id               String        @id @default(cuid())
+  userId           String
+  user             User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  numero           String
+  concepto         String        @db.Text
+  baseImponible    Float
+  porcentajeIva    Float         @default(21)
+  totalIva         Float
+  total            Float
+  estado           EstadoFactura @default(EMITIDA)
+  stripeInvoiceId  String?
+  pdfUrl           String?
+  fechaEmision     DateTime      @default(now())
+  fechaVencimiento DateTime?
+  createdAt        DateTime      @default(now())
+
+  @@unique([userId, numero])
+}
+
+model Agencia {
+  id           String               @id @default(cuid())
+  nombre       String
+  ownerId      String
+  owner        User                 @relation("AgenciaOwner", fields: [ownerId], references: [id])
+  miembros     MiembroAgencia[]
+  empresas     Empresa[]
+  invitaciones InvitacionAgencia[]
+  createdAt    DateTime             @default(now())
+}
+
+enum RolEquipo {
+  PROPIETARIO
+  ADMIN
+  EDITOR
+  LECTOR
+}
+
+model MiembroAgencia {
+  id        String    @id @default(cuid())
+  agenciaId String
+  agencia   Agencia   @relation(fields: [agenciaId], references: [id], onDelete: Cascade)
+  userId    String
+  user      User      @relation("MiembroDeAgencia", fields: [userId], references: [id])
+  rol       RolEquipo @default(EDITOR)
+  createdAt DateTime  @default(now())
+
+  @@unique([agenciaId, userId])
+}
+
+enum EstadoInvitacion {
+  PENDIENTE
+  ACEPTADA
+  RECHAZADA
+  EXPIRADA
+}
+
+model InvitacionAgencia {
+  id        String           @id @default(cuid())
+  agenciaId String
+  agencia   Agencia          @relation(fields: [agenciaId], references: [id], onDelete: Cascade)
+  email     String
+  rol       RolEquipo        @default(EDITOR)
+  token     String           @unique
+  estado    EstadoInvitacion @default(PENDIENTE)
+  expiraEn  DateTime
+  createdAt DateTime         @default(now())
+}
+
+model AuditoriaWeb {
+  id                    String   @id @default(cuid())
+  empresaId             String
+  empresa               Empresa  @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  url                   String
+  puntuacionSEO         Int
+  puntuacionPerformance Int
+  problemasEncontrados  Json
+  recomendaciones       Json
+  createdAt             DateTime @default(now())
+}
+
+model PalabraClave {
+  id              String   @id @default(cuid())
+  empresaId       String
+  empresa         Empresa  @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  termino         String
+  volumenEstimado String?
+  dificultad      String?
+  prioridad       String   @default("MEDIA")
+  createdAt       DateTime @default(now())
+}
+
+enum EstadoCampanaAds {
+  BORRADOR
+  ACTIVA
+  PAUSADA
+  FINALIZADA
+}
+
+model CampanaAds {
+  id                String           @id @default(cuid())
+  empresaId         String
+  empresa           Empresa          @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  nombre            String
+  objetivo          String
+  presupuestoDiario Float
+  textoAnuncio      String           @db.Text
+  imagenUrl         String?
+  publicoObjetivo   Json
+  estado            EstadoCampanaAds @default(BORRADOR)
+  campaignIdMeta    String?
+  metricas          Json?
+  createdAt         DateTime         @default(now())
+}
+
+model WebhookSaliente {
+  id        String   @id @default(cuid())
+  empresaId String
+  empresa   Empresa  @relation(fields: [empresaId], references: [id], onDelete: Cascade)
+  evento    String
+  url       String
+  activo    Boolean  @default(true)
+  createdAt DateTime @default(now())
+}
