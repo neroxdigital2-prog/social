@@ -20,6 +20,10 @@ function formatearFechaCorta(d: Date) {
   return d.toLocaleDateString("es-ES", { day: "2-digit", month: "short" });
 }
 
+function formatearHora(iso: string) {
+  return new Date(iso).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" });
+}
+
 function mismodia(fechaISO: string, dia: Date) {
   const f = new Date(fechaISO);
   return (
@@ -29,19 +33,32 @@ function mismodia(fechaISO: string, dia: Date) {
   );
 }
 
-// Convierte un <input type="date"> (YYYY-MM-DD) a ISO con hora fija 10:00 local
-function fechaInputAIso(valor: string): string {
-  const [anio, mes, dia] = valor.split("-").map(Number);
-  const d = new Date(anio, mes - 1, dia, 10, 0, 0);
+// Convierte un <input type="datetime-local"> (YYYY-MM-DDTHH:mm) a ISO, en hora local
+function inputAIso(valor: string): string {
+  const [fecha, hora] = valor.split("T");
+  const [anio, mes, dia] = fecha.split("-").map(Number);
+  const [h, m] = hora.split(":").map(Number);
+  const d = new Date(anio, mes - 1, dia, h, m, 0);
   return d.toISOString();
 }
 
-function isoAFechaInput(iso: string): string {
+// Convierte ISO a formato datetime-local (YYYY-MM-DDTHH:mm) en hora local
+function isoAInput(iso: string): string {
   const d = new Date(iso);
   const anio = d.getFullYear();
   const mes = String(d.getMonth() + 1).padStart(2, "0");
   const dia = String(d.getDate()).padStart(2, "0");
-  return `${anio}-${mes}-${dia}`;
+  const h = String(d.getHours()).padStart(2, "0");
+  const m = String(d.getMinutes()).padStart(2, "0");
+  return `${anio}-${mes}-${dia}T${h}:${m}`;
+}
+
+// Franja del día según la hora, para dar contexto visual rápido
+function franjaDelDia(iso: string): string {
+  const hora = new Date(iso).getHours();
+  if (hora < 12) return "Mañana";
+  if (hora < 19) return "Tarde";
+  return "Noche";
 }
 
 export function CalendarioSemana({
@@ -94,6 +111,13 @@ export function CalendarioSemana({
     router.push(`/calendario?empresa=${empresaId}&semana=${nuevoOffset}`);
   }
 
+  // Dentro de cada día, ordenar por hora
+  function pubsDelDiaOrdenadas(dia: Date) {
+    return items
+      .filter((p) => p.fechaProgramada && mismodia(p.fechaProgramada, dia))
+      .sort((a, b) => new Date(a.fechaProgramada!).getTime() - new Date(b.fechaProgramada!).getTime());
+  }
+
   return (
     <div className="calendario-semana">
       <div className="calendario-nav" style={{ display: "flex", gap: "0.75rem", alignItems: "center", marginBottom: "1rem" }}>
@@ -124,9 +148,9 @@ export function CalendarioSemana({
         style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "0.5rem", marginBottom: "2rem" }}
       >
         {diasSemana.map((dia, i) => {
-          const pubsDelDia = items.filter((p) => p.fechaProgramada && mismodia(p.fechaProgramada, dia));
+          const pubsDelDia = pubsDelDiaOrdenadas(dia);
           return (
-            <div key={i} className="calendario-dia" style={{ background: "var(--color-surface)", borderRadius: "var(--radius-md)", padding: "0.75rem", minHeight: "160px" }}>
+            <div key={i} className="calendario-dia" style={{ background: "var(--color-surface)", borderRadius: "var(--radius-md)", padding: "0.75rem", minHeight: "180px" }}>
               <div style={{ fontWeight: 600, marginBottom: "0.5rem" }}>
                 {DIAS[i]} <span className="text-muted">{formatearFechaCorta(dia)}</span>
               </div>
@@ -137,13 +161,18 @@ export function CalendarioSemana({
               ) : (
                 pubsDelDia.map((p) => (
                   <div key={p.id} className="calendario-item" style={{ background: "var(--color-background)", borderRadius: "6px", padding: "0.5rem", marginBottom: "0.5rem", fontSize: "0.8rem" }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "0.25rem" }}>
+                      <span style={{ fontWeight: 700 }}>{formatearHora(p.fechaProgramada!)}</span>
+                      <span className="text-muted" style={{ fontSize: "0.7rem" }}>{franjaDelDia(p.fechaProgramada!)}</span>
+                    </div>
                     <strong>{p.titulo}</strong>
-                    <div style={{ marginTop: "0.25rem" }}>
+                    <div style={{ marginTop: "0.35rem" }}>
                       <input
-                        type="date"
-                        value={isoAFechaInput(p.fechaProgramada!)}
+                        type="datetime-local"
+                        value={isoAInput(p.fechaProgramada!)}
                         disabled={guardandoId === p.id}
-                        onChange={(e) => reprogramar(p.id, fechaInputAIso(e.target.value))}
+                        onChange={(e) => e.target.value && reprogramar(p.id, inputAIso(e.target.value))}
+                        style={{ fontSize: "0.75rem" }}
                       />
                       <button
                         type="button"
@@ -178,9 +207,9 @@ export function CalendarioSemana({
                 <div className="text-muted" style={{ fontSize: "0.8rem" }}>{p.tipo.replace(/_/g, " ")}</div>
               </div>
               <input
-                type="date"
+                type="datetime-local"
                 disabled={guardandoId === p.id}
-                onChange={(e) => e.target.value && reprogramar(p.id, fechaInputAIso(e.target.value))}
+                onChange={(e) => e.target.value && reprogramar(p.id, inputAIso(e.target.value))}
               />
             </div>
           ))}
