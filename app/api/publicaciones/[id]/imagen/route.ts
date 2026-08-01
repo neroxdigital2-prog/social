@@ -1,13 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { generarImagen } from "@/lib/generadorImagen";
-import { subirImagenDesdeUrl } from "@/lib/storage";
 import { z } from "zod";
 
 export const maxDuration = 60;
 
 const BRIDGE_SECRET = process.env.BRIDGE_SECRET!;
-const BRIDGE_CONFIG_LISTAR = process.env.IONOS_BRIDGE_URL_CONFIG_API_LISTAR!;
 const BRIDGE_ACTUALIZAR_IMAGEN = process.env.IONOS_BRIDGE_URL_PUBLICACIONES_ACTUALIZAR_IMAGEN!;
 
 const BodySchema = z.object({ imagenPrompt: z.string().min(3) });
@@ -29,21 +27,13 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const parsed = BodySchema.safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: "Falta el imagenPrompt" }, { status: 400 });
 
-  // Usa la clave de Gemini propia del usuario si la configuró; si no, la de plataforma
-  // (definida dentro de lib/generadorImagen.ts vía GEMINI_API_KEY). Pollinations no
-  // necesita clave, así que siempre queda como respaldo final.
-  const configRes = await bridgeFetch(BRIDGE_CONFIG_LISTAR, { userId: session.user.id, completo: true });
-  const clavesGuardadas: { proveedor: string; apiKey: string }[] = Array.isArray(configRes.data)
-    ? configRes.data
-    : [];
-  const geminiKey = clavesGuardadas.find((c) => c.proveedor === "GEMINI")?.apiKey;
-
   try {
-    const urlTemporal = await generarImagen(parsed.data.imagenPrompt, { gemini: geminiKey });
-
-    const extension = urlTemporal.startsWith("data:image/jpeg") ? "jpg" : "png";
-    const nombreArchivo = `publicaciones/${params.id}-${Date.now()}.${extension}`;
-    const urlFinal = await subirImagenDesdeUrl(urlTemporal, nombreArchivo);
+    // Por ahora, sin Supabase Storage configurado, se usa directo la URL de
+    // Pollinations (persistente y publica), sin re-subir el archivo a ningun lado.
+    // Cuando se configure SUPABASE_URL/SUPABASE_SERVICE_ROLE_KEY en Vercel, se puede
+    // pasar la clave de Gemini aqui tambien y usar subirImagenDesdeUrl() para
+    // guardar una copia propia en vez de depender de un servicio externo.
+    const urlFinal = await generarImagen(parsed.data.imagenPrompt);
 
     const actualizar = await bridgeFetch(BRIDGE_ACTUALIZAR_IMAGEN, {
       userId: session.user.id,
@@ -58,6 +48,6 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     return NextResponse.json({ imagenUrl: urlFinal }, { status: 200 });
   } catch (error) {
     console.error("Error generando imagen:", error);
-    return NextResponse.json({ error: "Fallo al generar la imagen con todos los proveedores disponibles" }, { status: 502 });
+    return NextResponse.json({ error: "Fallo al generar la imagen" }, { status: 502 });
   }
 }
