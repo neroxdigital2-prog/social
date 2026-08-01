@@ -13,33 +13,48 @@ interface Lead {
   createdAt: string;
 }
 
-async function bridgePost(url: string, body: unknown) {
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", "X-Bridge-Secret": process.env.BRIDGE_SECRET! },
-    body: JSON.stringify(body),
-    cache: "no-store",
-  });
-  return res.json().catch(() => null);
+async function bridgePost(url: string | undefined, body: unknown) {
+  if (!url) {
+    console.error("bridgePost: URL de entorno no definida");
+    return null;
+  }
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Bridge-Secret": process.env.BRIDGE_SECRET! },
+      body: JSON.stringify(body),
+      cache: "no-store",
+    });
+    return await res.json();
+  } catch (error) {
+    console.error("bridgePost falló:", error);
+    return null;
+  }
 }
 
 export default async function CRMPage({ searchParams }: { searchParams: { empresa?: string } }) {
   const session = await auth();
   if (!session?.user) redirect("/login");
 
-  const empresas = await bridgePost(process.env.IONOS_BRIDGE_URL_EMPRESAS_LIST!, {
+  const empresas = await bridgePost(process.env.IONOS_BRIDGE_URL_EMPRESAS_LIST, {
     userId: session.user.id,
   });
   const listaEmpresas = Array.isArray(empresas) ? empresas : [];
   const empresaId = searchParams.empresa || listaEmpresas[0]?.id;
 
   let leads: Lead[] = [];
+  let errorCarga = false;
+
   if (empresaId) {
-    const data = await bridgePost(process.env.IONOS_BRIDGE_URL_LEADS_LIST!, {
+    const data = await bridgePost(process.env.IONOS_BRIDGE_URL_LEADS_LIST, {
       userId: session.user.id,
       empresaId,
     });
-    leads = Array.isArray(data) ? data : [];
+    if (Array.isArray(data)) {
+      leads = data;
+    } else {
+      errorCarga = true;
+    }
   }
 
   return (
@@ -52,6 +67,10 @@ export default async function CRMPage({ searchParams }: { searchParams: { empres
         {!empresaId ? (
           <p>
             Aún no tienes empresas registradas. <a href="/empresas/nueva">Crea tu primera empresa</a>
+          </p>
+        ) : errorCarga ? (
+          <p className="cal-error" style={{ display: "inline-block" }}>
+            No se pudieron cargar los leads. Verifica la configuración del servidor e inténtalo de nuevo.
           </p>
         ) : (
           <CRMLista leads={leads} empresaId={empresaId} />
