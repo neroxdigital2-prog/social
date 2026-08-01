@@ -2,9 +2,8 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import "./globals.css";
 import { SelectorEmpresa } from "@/components/layout/SelectorEmpresa";
-
+import { CerrarSesionBoton } from "@/components/layout/CerrarSesionBoton";
 export const metadata: Metadata = { title: "Nerox Social IA" };
-
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="es">
@@ -21,6 +20,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <a href="/whatsapp">WhatsApp</a>
             <a href="/agenda">Agenda</a>
             <a href="/configuracion">Configuración</a>
+            <CerrarSesionBoton />
           </div>
         </nav>
         {children}
