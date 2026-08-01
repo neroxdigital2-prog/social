@@ -25,8 +25,10 @@ export async function GET() {
   return NextResponse.json(res.data, { status: res.status });
 }
 
+const PROVEEDORES_VALIDOS = ["GEMINI", "GROQ", "CEREBRAS", "OPENROUTER"] as const;
+
 const GuardarSchema = z.object({
-  proveedor: z.enum(["GEMINI", "GROQ"]),
+  proveedor: z.enum(PROVEEDORES_VALIDOS),
   apiKey: z.string().min(10),
 });
 
@@ -42,7 +44,7 @@ export async function POST(req: NextRequest) {
   return NextResponse.json(res.data, { status: res.status });
 }
 
-const EliminarSchema = z.object({ proveedor: z.enum(["GEMINI", "GROQ"]) });
+const EliminarSchema = z.object({ proveedor: z.enum(PROVEEDORES_VALIDOS) });
 
 export async function DELETE(req: NextRequest) {
   const session = await auth();
