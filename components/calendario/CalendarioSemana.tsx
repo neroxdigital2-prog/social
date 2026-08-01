@@ -33,7 +33,11 @@ function mismodia(fechaISO: string, dia: Date) {
   );
 }
 
-// Convierte un <input type="datetime-local"> (YYYY-MM-DDTHH:mm) a ISO, en hora local
+function esHoy(dia: Date) {
+  const hoy = new Date();
+  return mismodia(hoy.toISOString(), dia);
+}
+
 function inputAIso(valor: string): string {
   const [fecha, hora] = valor.split("T");
   const [anio, mes, dia] = fecha.split("-").map(Number);
@@ -42,7 +46,6 @@ function inputAIso(valor: string): string {
   return d.toISOString();
 }
 
-// Convierte ISO a formato datetime-local (YYYY-MM-DDTHH:mm) en hora local
 function isoAInput(iso: string): string {
   const d = new Date(iso);
   const anio = d.getFullYear();
@@ -53,7 +56,6 @@ function isoAInput(iso: string): string {
   return `${anio}-${mes}-${dia}T${h}:${m}`;
 }
 
-// Franja del día según la hora, para dar contexto visual rápido
 function franjaDelDia(iso: string): string {
   const hora = new Date(iso).getHours();
   if (hora < 12) return "Mañana";
@@ -111,7 +113,6 @@ export function CalendarioSemana({
     router.push(`/calendario?empresa=${empresaId}&semana=${nuevoOffset}`);
   }
 
-  // Dentro de cada día, ordenar por hora
   function pubsDelDiaOrdenadas(dia: Date) {
     return items
       .filter((p) => p.fechaProgramada && mismodia(p.fechaProgramada, dia))
@@ -119,102 +120,99 @@ export function CalendarioSemana({
   }
 
   return (
-    <div className="calendario-semana">
-      <div className="calendario-nav" style={{ display: "flex", gap: "0.75rem", alignItems: "center", marginBottom: "1rem" }}>
-        <button type="button" className="btn-secondary" onClick={() => irASemana(offsetSemanas - 1)}>
+    <div className="cal-tarjeta">
+      <div className="cal-nav">
+        <button type="button" className="cal-btn-nav" onClick={() => irASemana(offsetSemanas - 1)}>
           ← Semana anterior
         </button>
-        <span className="text-muted">
+        <span className="cal-rango">
           {formatearFechaCorta(diasSemana[0])} – {formatearFechaCorta(diasSemana[6])}
         </span>
-        <button type="button" className="btn-secondary" onClick={() => irASemana(offsetSemanas + 1)}>
+        <button type="button" className="cal-btn-nav" onClick={() => irASemana(offsetSemanas + 1)}>
           Semana siguiente →
         </button>
         {offsetSemanas !== 0 && (
-          <button type="button" className="btn-secondary" onClick={() => irASemana(0)}>
+          <button type="button" className="cal-btn-hoy" onClick={() => irASemana(0)}>
             Hoy
           </button>
         )}
       </div>
 
       {error && (
-        <p role="alert" className="field-error" style={{ marginBottom: "1rem" }}>
+        <p role="alert" className="cal-error">
           {error}
         </p>
       )}
 
-      <div
-        className="calendario-grid"
-        style={{ display: "grid", gridTemplateColumns: "repeat(7, 1fr)", gap: "0.5rem", marginBottom: "2rem" }}
-      >
+      <div className="cal-grid">
         {diasSemana.map((dia, i) => {
           const pubsDelDia = pubsDelDiaOrdenadas(dia);
           return (
-            <div key={i} className="calendario-dia" style={{ background: "var(--color-surface)", borderRadius: "var(--radius-md)", padding: "0.75rem", minHeight: "180px" }}>
-              <div style={{ fontWeight: 600, marginBottom: "0.5rem" }}>
-                {DIAS[i]} <span className="text-muted">{formatearFechaCorta(dia)}</span>
+            <div key={i} className={`cal-columna ${esHoy(dia) ? "cal-columna-hoy" : ""}`}>
+              <div className="cal-dia-header">
+                <span className="cal-dia-nombre">{DIAS[i]}</span>
+                <span className="cal-dia-fecha">{formatearFechaCorta(dia)}</span>
               </div>
-              {pubsDelDia.length === 0 ? (
-                <p className="text-muted" style={{ fontSize: "0.8rem" }}>
-                  Sin publicaciones
-                </p>
-              ) : (
-                pubsDelDia.map((p) => (
-                  <div key={p.id} className="calendario-item" style={{ background: "var(--color-background)", borderRadius: "6px", padding: "0.5rem", marginBottom: "0.5rem", fontSize: "0.8rem" }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: "0.25rem" }}>
-                      <span style={{ fontWeight: 700 }}>{formatearHora(p.fechaProgramada!)}</span>
-                      <span className="text-muted" style={{ fontSize: "0.7rem" }}>{franjaDelDia(p.fechaProgramada!)}</span>
+              <div className="cal-dia-contenido">
+                {pubsDelDia.length === 0 ? (
+                  <p className="cal-sin-publicaciones">Sin publicaciones</p>
+                ) : (
+                  pubsDelDia.map((p) => (
+                    <div key={p.id} className="cal-item">
+                      <div className="cal-item-top">
+                        <span className="cal-item-hora">{formatearHora(p.fechaProgramada!)}</span>
+                        <span className="cal-item-franja">{franjaDelDia(p.fechaProgramada!)}</span>
+                      </div>
+                      <p className="cal-item-titulo">{p.titulo}</p>
+                      <div className="cal-item-acciones">
+                        <input
+                          type="datetime-local"
+                          className="cal-input-fecha"
+                          value={isoAInput(p.fechaProgramada!)}
+                          disabled={guardandoId === p.id}
+                          onChange={(e) => e.target.value && reprogramar(p.id, inputAIso(e.target.value))}
+                        />
+                        <button
+                          type="button"
+                          className="cal-btn-quitar"
+                          onClick={() => reprogramar(p.id, null)}
+                          disabled={guardandoId === p.id}
+                        >
+                          Quitar
+                        </button>
+                      </div>
                     </div>
-                    <strong>{p.titulo}</strong>
-                    <div style={{ marginTop: "0.35rem" }}>
-                      <input
-                        type="datetime-local"
-                        value={isoAInput(p.fechaProgramada!)}
-                        disabled={guardandoId === p.id}
-                        onChange={(e) => e.target.value && reprogramar(p.id, inputAIso(e.target.value))}
-                        style={{ fontSize: "0.75rem" }}
-                      />
-                      <button
-                        type="button"
-                        onClick={() => reprogramar(p.id, null)}
-                        disabled={guardandoId === p.id}
-                        style={{ marginLeft: "0.5rem", fontSize: "0.75rem" }}
-                      >
-                        Quitar
-                      </button>
-                    </div>
-                  </div>
-                ))
-              )}
+                  ))
+                )}
+              </div>
             </div>
           );
         })}
       </div>
 
-      <h2 style={{ fontSize: "1.1rem", marginBottom: "0.75rem" }}>Sin programar ({sinProgramar.length})</h2>
-      {sinProgramar.length === 0 ? (
-        <p className="text-muted">Todas las publicaciones están programadas.</p>
-      ) : (
-        <div className="calendario-sin-programar" style={{ display: "grid", gap: "0.5rem" }}>
-          {sinProgramar.map((p) => (
-            <div
-              key={p.id}
-              className="calendario-item"
-              style={{ background: "var(--color-surface)", borderRadius: "var(--radius-md)", padding: "0.75rem", display: "flex", alignItems: "center", justifyContent: "space-between", gap: "1rem" }}
-            >
-              <div>
-                <strong>{p.titulo}</strong>
-                <div className="text-muted" style={{ fontSize: "0.8rem" }}>{p.tipo.replace(/_/g, " ")}</div>
+      <div className="cal-sin-programar-seccion">
+        <h2 className="cal-subtitulo">Sin programar ({sinProgramar.length})</h2>
+        {sinProgramar.length === 0 ? (
+          <p className="cal-sin-publicaciones">Todas las publicaciones están programadas.</p>
+        ) : (
+          <div className="cal-sin-programar-lista">
+            {sinProgramar.map((p) => (
+              <div key={p.id} className="cal-sin-programar-item">
+                <div>
+                  <strong className="cal-item-titulo">{p.titulo}</strong>
+                  <div className="cal-item-tipo">{p.tipo.replace(/_/g, " ")}</div>
+                </div>
+                <input
+                  type="datetime-local"
+                  className="cal-input-fecha"
+                  disabled={guardandoId === p.id}
+                  onChange={(e) => e.target.value && reprogramar(p.id, inputAIso(e.target.value))}
+                />
               </div>
-              <input
-                type="datetime-local"
-                disabled={guardandoId === p.id}
-                onChange={(e) => e.target.value && reprogramar(p.id, inputAIso(e.target.value))}
-              />
-            </div>
-          ))}
-        </div>
-      )}
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
