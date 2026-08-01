@@ -7,6 +7,7 @@ export default async function GeneradorPage() {
   if (!session?.user) redirect("/login");
 
   let empresas: { id: string; nombre: string }[] = [];
+
   try {
     const res = await fetch(process.env.IONOS_BRIDGE_URL_EMPRESAS_LIST!, {
       method: "POST",
@@ -17,13 +18,26 @@ export default async function GeneradorPage() {
       body: JSON.stringify({ userId: session.user.id }),
       cache: "no-store",
     });
-    const data = await res.json();
+
+    const textoCrudo = await res.text();
+
+    // ===== DIAGNÓSTICO TEMPORAL — quitar después de resolver =====
+    console.log("[DIAGNOSTICO empresas] status:", res.status);
+    console.log("[DIAGNOSTICO empresas] userId enviado:", session.user.id);
+    console.log("[DIAGNOSTICO empresas] respuesta cruda:", textoCrudo);
+    // ================================================================
+
+    const data = JSON.parse(textoCrudo);
+
     if (Array.isArray(data)) {
       empresas = data
         .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
         .map((e) => ({ id: e.id, nombre: e.nombre }));
+    } else {
+      console.log("[DIAGNOSTICO empresas] la respuesta NO es un array:", data);
     }
-  } catch {
+  } catch (err) {
+    console.log("[DIAGNOSTICO empresas] ERROR capturado:", err);
     empresas = [];
   }
 
