@@ -39,6 +39,8 @@ body {
   color: var(--color-text);
   font-size: var(--font-fluid-base);
   color-scheme: dark;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  font-family: inherit;
 }
 
 /* Los navegadores no siempre heredan el color del <select> en sus <option>,
@@ -46,9 +48,6 @@ body {
 select option {
   background: var(--color-surface, var(--color-background));
   color: var(--color-text);
-}
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
-  font-family: inherit;
 }
 .field input:hover { border-color: hsl(0 0% 100% / 0.2); }
 .field input:focus-visible, select:focus-visible, textarea:focus-visible {
