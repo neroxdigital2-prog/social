@@ -31,7 +31,7 @@ async function bridgeFetch(url: string, body: unknown) {
   try {
     data = JSON.parse(textoCrudo);
   } catch {
-    data = { error: "Respuesta no es JSON válido", crudo: textoCrudo };
+    data = { error: "Respuesta no es JSON válido" };
   }
   return { ok: res.ok, status: res.status, data };
 }
@@ -52,7 +52,6 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   });
 
   if (!acceso.ok || !acceso.data.permitido) {
-    console.log("[DIAGNOSTICO generar] acceso denegado o bridge falló:", JSON.stringify(acceso));
     return NextResponse.json({ error: "Sin acceso a esta empresa" }, { status: 403 });
   }
   const empresa = acceso.data.empresa;
@@ -90,6 +89,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const claves = {
     gemini: clavesGuardadas.find((c) => c.proveedor === "GEMINI")?.apiKey,
     groq: clavesGuardadas.find((c) => c.proveedor === "GROQ")?.apiKey,
+    cerebras: clavesGuardadas.find((c) => c.proveedor === "CEREBRAS")?.apiKey,
+    openrouter: clavesGuardadas.find((c) => c.proveedor === "OPENROUTER")?.apiKey,
   };
 
   try {
@@ -106,23 +107,16 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       claves
     );
 
-    console.log("[DIAGNOSTICO generar] publicaciones generadas OK, cantidad:", generadas.length);
-    console.log("[DIAGNOSTICO generar] primera publicación:", JSON.stringify(generadas[0]));
-
     const crear = await bridgeFetch(BRIDGE_CREAR, { empresaId: empresa.id, publicaciones: generadas });
 
     if (!crear.ok) {
-      console.log("[DIAGNOSTICO generar] FALLO al guardar. status:", crear.status);
-      console.log("[DIAGNOSTICO generar] respuesta del bridge crear:", JSON.stringify(crear.data));
-      return NextResponse.json(
-        { error: "Fallo al guardar publicaciones", detalle: crear.data },
-        { status: 502 }
-      );
+      console.error("Fallo al guardar publicaciones:", crear.data);
+      return NextResponse.json({ error: "Fallo al guardar publicaciones" }, { status: 502 });
     }
 
     return NextResponse.json(crear.data, { status: 201 });
   } catch (error) {
-    console.error("[DIAGNOSTICO generar] Error generando publicaciones:", error);
+    console.error("Error generando publicaciones:", error);
     return NextResponse.json({ error: "Fallo al generar contenido con IA" }, { status: 502 });
   }
 }
