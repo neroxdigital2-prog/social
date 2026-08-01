@@ -84,6 +84,11 @@ body {
 .chip-remove:hover { background: hsl(0 0% 100% / 0.1); color: var(--color-text); }
 .publicaciones-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 1rem; }
 .pub-card { background: var(--color-surface); border-radius: var(--radius-md); padding: var(--space-fluid); display: flex; flex-direction: column; gap: 0.5rem; }
+.pub-imagen { width: 100%; aspect-ratio: 1 / 1; object-fit: cover; border-radius: var(--radius-sm); }
+.btn-generar-imagen { width: 100%; aspect-ratio: 1 / 1; border-radius: var(--radius-sm); border: 1px dashed var(--color-secondary); background: transparent; color: var(--color-text); cursor: pointer; font-size: 0.85rem; transition: background 0.15s, transform 0.1s; }
+.btn-generar-imagen:hover:not(:disabled) { background: color-mix(in srgb, var(--color-secondary) 12%, transparent); }
+.btn-generar-imagen:active:not(:disabled) { transform: scale(0.98); }
+.btn-generar-imagen:disabled { opacity: 0.6; cursor: wait; }
 .pub-tipo { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.03em; color: var(--color-secondary); }
 .pub-hashtags { display: flex; flex-wrap: wrap; gap: 0.35rem; }
 .tag { color: var(--color-primary); font-size: 0.8rem; }

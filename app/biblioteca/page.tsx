@@ -1,5 +1,6 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
+import { PublicacionCard } from "@/components/biblioteca/PublicacionCard";
 
 interface Publicacion {
   id: string;
@@ -8,6 +9,8 @@ interface Publicacion {
   texto: string;
   hashtags: string[];
   estado: string;
+  imagenPrompt: string;
+  imagenUrl: string | null;
 }
 
 async function bridgePost(url: string, body: unknown) {
@@ -50,18 +53,9 @@ export default async function BibliotecaPage({ searchParams }: { searchParams: {
         <p className="text-muted">{publicaciones.length} publicaciones generadas</p>
       </header>
       <section className="publicaciones-grid">
-        {publicaciones.map((pub) => {
-          const hashtags = pub.hashtags as string[];
-          return (
-            <article key={pub.id} className="pub-card">
-              <span className="pub-tipo">{pub.tipo.replace(/_/g, " ")}</span>
-              <h3>{pub.titulo}</h3>
-              <p>{pub.texto}</p>
-              <div className="pub-hashtags">{hashtags.map((tag) => <span key={tag} className="tag">#{tag}</span>)}</div>
-              <span className={`pub-estado estado-${pub.estado.toLowerCase()}`}>{pub.estado}</span>
-            </article>
-          );
-        })}
+        {publicaciones.map((pub) => (
+          <PublicacionCard key={pub.id} publicacion={{ ...pub, hashtags: pub.hashtags as string[] }} />
+        ))}
       </section>
     </main>
   );
