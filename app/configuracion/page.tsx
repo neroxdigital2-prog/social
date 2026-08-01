@@ -17,7 +17,7 @@ export default async function ConfiguracionPage() {
         <h2>Claves de API para generar contenido</h2>
         <p className="text-muted" style={{ marginTop: 0 }}>
           Por defecto usamos nuestras propias claves. Si prefieres usar las tuyas (por ejemplo, para tener tu propio
-          límite de uso), puedes pegarlas aquí. Se usan en este orden: Gemini primero, y si falla, Groq.
+          límite de uso), puedes pegarlas aquí. Se usan en este orden: Gemini, Groq, Cerebras y OpenRouter — si una falla, se prueba la siguiente automáticamente.
         </p>
         <ConfiguracionApiKeys />
       </section>

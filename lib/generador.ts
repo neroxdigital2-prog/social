@@ -21,6 +21,8 @@ export interface PublicacionGenerada {
 export interface ClavesApi {
   gemini?: string;
   groq?: string;
+  cerebras?: string;
+  openrouter?: string;
 }
 
 const TIPOS_ROTACION: TipoPublicacion[] = [
@@ -119,6 +121,75 @@ async function generarConGroq(systemPrompt: string, userPrompt: string, apiKey: 
   return contenido;
 }
 
+// Cerebras: API compatible con OpenAI, 1,000,000 tokens/día gratis (sin tarjeta).
+// El catálogo de modelos gratis cambia con frecuencia; llama-3.3-70b es la opción
+// más estable a la fecha. Si Cerebras retira ese modelo, este paso simplemente
+// falla y el flujo sigue con OpenRouter.
+async function generarConCerebras(systemPrompt: string, userPrompt: string, apiKey: string): Promise<string> {
+  const respuesta = await conRetry(async () => {
+    const res = await fetch("https://api.cerebras.ai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: "llama-3.3-70b",
+        response_format: { type: "json_object" },
+        temperature: 0.8,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
+      }),
+    });
+    if (!res.ok) {
+      const errorBody = await res.text();
+      throw new Error(`Cerebras API error ${res.status}: ${errorBody}`);
+    }
+    return res.json();
+  });
+
+  const contenido = respuesta?.choices?.[0]?.message?.content;
+  if (!contenido) throw new Error("Cerebras no devolvió contenido");
+  return contenido;
+}
+
+// OpenRouter: usamos el router automático "openrouter/free", que Openrouter
+// mantiene apuntando a UN modelo gratis disponible en cada momento. Esto evita
+// que el fallback se rompa cuando un modelo :free puntual es retirado del catálogo.
+async function generarConOpenRouter(systemPrompt: string, userPrompt: string, apiKey: string): Promise<string> {
+  const respuesta = await conRetry(async () => {
+    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+        "HTTP-Referer": "https://social.nerox.es",
+        "X-Title": "Nerox Social IA",
+      },
+      body: JSON.stringify({
+        model: "openrouter/free",
+        response_format: { type: "json_object" },
+        temperature: 0.8,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
+      }),
+    });
+    if (!res.ok) {
+      const errorBody = await res.text();
+      throw new Error(`OpenRouter API error ${res.status}: ${errorBody}`);
+    }
+    return res.json();
+  });
+
+  const contenido = respuesta?.choices?.[0]?.message?.content;
+  if (!contenido) throw new Error("OpenRouter no devolvió contenido");
+  return contenido;
+}
+
 export async function generarPublicaciones(
   perfil: PerfilEmpresa,
   cantidad: number,
@@ -126,21 +197,36 @@ export async function generarPublicaciones(
 ): Promise<PublicacionGenerada[]> {
   const { systemPrompt, userPrompt } = construirPrompts(perfil, cantidad);
 
-  const geminiKey = claves.gemini || process.env.GEMINI_API_KEY!;
+  const geminiKey = claves.gemini || process.env.GEMINI_API_KEY;
   const groqKey = claves.groq || process.env.GROQ_API_KEY;
+  const cerebrasKey = claves.cerebras || process.env.CEREBRAS_API_KEY;
+  const openrouterKey = claves.openrouter || process.env.OPENROUTER_API_KEY;
 
-  let contenido: string;
+  // Orden de la cadena: cada paso se intenta solo si hay clave disponible.
+  // Si todos fallan (o no hay ninguna clave), se propaga el último error real.
+  const pasos: Array<{ nombre: string; key?: string; fn: (s: string, u: string, k: string) => Promise<string> }> = [
+    { nombre: "Gemini", key: geminiKey, fn: generarConGemini },
+    { nombre: "Groq", key: groqKey, fn: generarConGroq },
+    { nombre: "Cerebras", key: cerebrasKey, fn: generarConCerebras },
+    { nombre: "OpenRouter", key: openrouterKey, fn: generarConOpenRouter },
+  ];
 
-  try {
-    contenido = await generarConGemini(systemPrompt, userPrompt, geminiKey);
-  } catch (errorGemini) {
-    console.error("Fallo Gemini, probando con Groq:", errorGemini);
+  let contenido: string | null = null;
+  let ultimoError: unknown = null;
 
-    if (!groqKey) {
-      throw errorGemini; // no hay fallback disponible, propaga el error original
+  for (const paso of pasos) {
+    if (!paso.key) continue;
+    try {
+      contenido = await paso.fn(systemPrompt, userPrompt, paso.key);
+      break;
+    } catch (error) {
+      console.error(`Fallo ${paso.nombre}, probando siguiente proveedor:`, error);
+      ultimoError = error;
     }
+  }
 
-    contenido = await generarConGroq(systemPrompt, userPrompt, groqKey);
+  if (!contenido) {
+    throw ultimoError ?? new Error("No hay ninguna clave de API configurada (Gemini, Groq, Cerebras u OpenRouter)");
   }
 
   const parsed = JSON.parse(contenido) as { publicaciones: PublicacionGenerada[] };

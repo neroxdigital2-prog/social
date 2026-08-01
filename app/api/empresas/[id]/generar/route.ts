@@ -83,6 +83,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const claves = {
     gemini: clavesGuardadas.find((c) => c.proveedor === "GEMINI")?.apiKey,
     groq: clavesGuardadas.find((c) => c.proveedor === "GROQ")?.apiKey,
+    cerebras: clavesGuardadas.find((c) => c.proveedor === "CEREBRAS")?.apiKey,
+    openrouter: clavesGuardadas.find((c) => c.proveedor === "OPENROUTER")?.apiKey,
   };
 
   try {

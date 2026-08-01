@@ -11,6 +11,8 @@ interface ClaveGuardada {
 const PROVEEDORES = [
   { id: "GEMINI", nombre: "Google Gemini", ayuda: "Consíguela gratis en aistudio.google.com/apikey" },
   { id: "GROQ", nombre: "Groq", ayuda: "Consíguela gratis en console.groq.com/keys" },
+  { id: "CEREBRAS", nombre: "Cerebras", ayuda: "Consíguela gratis en cloud.cerebras.ai (1M tokens/día)" },
+  { id: "OPENROUTER", nombre: "OpenRouter", ayuda: "Consíguela gratis en openrouter.ai/keys" },
 ];
 
 export function ConfiguracionApiKeys() {
