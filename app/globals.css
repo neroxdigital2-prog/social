@@ -38,6 +38,15 @@ body {
   padding: 0.75rem 1rem;
   color: var(--color-text);
   font-size: var(--font-fluid-base);
+  color-scheme: dark;
+}
+
+/* Los navegadores no siempre heredan el color del <select> en sus <option>,
+   así que se fuerza explícito para evitar texto invisible en tema oscuro. */
+select option {
+  background: var(--color-surface, var(--color-background));
+  color: var(--color-text);
+}
   transition: border-color 0.15s ease, box-shadow 0.15s ease;
   font-family: inherit;
 }
