@@ -2,12 +2,6 @@ import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { GeneradorForm } from "@/components/generador/GeneradorForm";
 
-// ⚠️ TEMPORAL: URL forzada directamente en código para descartar problemas
-// con la variable de entorno. Una vez confirmado que funciona, se puede
-// volver a usar process.env.IONOS_BRIDGE_URL_EMPRESAS_LIST si esa variable
-// ya está corregida en Vercel.
-const BRIDGE_URL_EMPRESAS = "https://bridge.nerox.es/empresas-list.php";
-
 export default async function GeneradorPage() {
   const session = await auth();
   if (!session?.user) redirect("/login");
@@ -15,10 +9,7 @@ export default async function GeneradorPage() {
   let empresas: { id: string; nombre: string }[] = [];
 
   try {
-    console.log("[DIAGNOSTICO empresas] URL usada:", BRIDGE_URL_EMPRESAS);
-    console.log("[DIAGNOSTICO empresas] userId enviado:", session.user.id);
-
-    const res = await fetch(BRIDGE_URL_EMPRESAS, {
+    const res = await fetch(process.env.IONOS_BRIDGE_URL_EMPRESAS_LIST!, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -28,23 +19,15 @@ export default async function GeneradorPage() {
       cache: "no-store",
     });
 
-    const textoCrudo = await res.text();
-
-    console.log("[DIAGNOSTICO empresas] status:", res.status);
-    console.log("[DIAGNOSTICO empresas] respuesta cruda:", textoCrudo);
-
-    const data = JSON.parse(textoCrudo);
+    const data = await res.json();
 
     if (Array.isArray(data)) {
       empresas = data
         .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
         .map((e) => ({ id: e.id, nombre: e.nombre }));
-      console.log("[DIAGNOSTICO empresas] empresas mapeadas:", JSON.stringify(empresas));
-    } else {
-      console.log("[DIAGNOSTICO empresas] la respuesta NO es un array:", JSON.stringify(data));
     }
-  } catch (err) {
-    console.log("[DIAGNOSTICO empresas] ERROR capturado:", err);
+  } catch (error) {
+    console.error("Error al cargar empresas:", error);
     empresas = [];
   }
 
