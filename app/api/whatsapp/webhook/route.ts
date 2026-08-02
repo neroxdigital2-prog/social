@@ -95,6 +95,13 @@ export async function POST(req: NextRequest) {
 
     // Los webhooks de "estado" (entregado/leído) no traen "messages"; los ignoramos.
     if (!mensaje) {
+      // LOG TEMPORAL DE DIAGNÓSTICO — para ver por qué un mensaje no llega al destinatario
+      const statuses = value?.statuses;
+      if (statuses) {
+        console.log("WHATSAPP STATUS UPDATE:", JSON.stringify(statuses));
+      } else {
+        console.log("WHATSAPP WEBHOOK SIN MESSAGES NI STATUSES:", JSON.stringify(body));
+      }
       return NextResponse.json({ ok: true });
     }
 
