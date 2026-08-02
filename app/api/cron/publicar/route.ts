@@ -77,7 +77,8 @@ function firmarOAuth1(
   apiSecret: string,
   accessTokenSecret: string
 ): string {
-  const encode = (s: string) => encodeURIComponent(s).replace(/[!*()']/g, (c) => "%" + c.charCodeAt(0).toString(16).toUpperCase());
+  const encode = (s: string) =>
+    encodeURIComponent(s).replace(/[!*()']/g, (c) => "%" + c.charCodeAt(0).toString(16).toUpperCase());
 
   const paramString = Object.keys(oauthParams)
     .sort()
@@ -97,7 +98,8 @@ function encabezadoOAuth1(
   accessToken: string,
   accessTokenSecret: string
 ): string {
-  const encode = (s: string) => encodeURIComponent(s).replace(/[!*()']/g, (c) => "%" + c.charCodeAt(0).toString(16).toUpperCase());
+  const encode = (s: string) =>
+    encodeURIComponent(s).replace(/[!*()']/g, (c) => "%" + c.charCodeAt(0).toString(16).toUpperCase());
 
   const oauthParams: Record<string, string> = {
     oauth_consumer_key: apiKey,
@@ -109,7 +111,9 @@ function encabezadoOAuth1(
   };
 
   const firma = firmarOAuth1(method, url, oauthParams, apiSecret, accessTokenSecret);
-  const conFirma = { ...oauthParams, oauth_signature: firma };
+
+  // Tipado explícito para evitar que TypeScript pierda el índice de string al combinar objetos.
+  const conFirma: Record<string, string> = { ...oauthParams, oauth_signature: firma };
 
   return (
     "OAuth " +
