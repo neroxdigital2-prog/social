@@ -752,3 +752,135 @@ select option {
   color: var(--color-text-muted);
   min-width: 90px;
 }
+
+/* --- Agenda --- */
+.agenda-tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  padding-bottom: 0.75rem;
+}
+
+.agenda-tab,
+.agenda-tab-activo {
+  border: none;
+  background: transparent;
+  padding: 0.5rem 1rem;
+  border-radius: 980px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--color-text-muted);
+}
+
+.agenda-tab-activo {
+  background: var(--color-primary);
+  color: #ffffff;
+}
+
+.agenda-form-fila {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.25rem;
+}
+
+.agenda-form-fila input {
+  flex: 1;
+  min-width: 140px;
+  border: none;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08);
+  border-radius: 980px;
+  padding: 0.6rem 1rem;
+  font-size: 0.9rem;
+}
+
+.agenda-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.agenda-servicio-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #f5f5f7;
+  border-radius: 14px;
+  padding: 0.7rem 1rem;
+}
+
+.agenda-servicio-inactivo {
+  opacity: 0.5;
+}
+
+.btn-secundario {
+  background: #ffffff;
+  border: none;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.1);
+  border-radius: 980px;
+  padding: 0.4rem 0.9rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.agenda-horario-lista {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+}
+
+.agenda-horario-fila {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  background: #f5f5f7;
+  border-radius: 14px;
+  padding: 0.6rem 1rem;
+}
+
+.agenda-horario-check {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  min-width: 130px;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.agenda-horario-horas {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.agenda-horario-horas input[type="time"] {
+  border: none;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08);
+  border-radius: 8px;
+  padding: 0.35rem 0.6rem;
+  font-size: 0.85rem;
+}
+
+.agenda-form-cita {
+  display: flex;
+  gap: 0.6rem;
+  flex-wrap: wrap;
+  align-items: center;
+  background: #f5f5f7;
+  border-radius: 14px;
+  padding: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.agenda-form-cita input,
+.agenda-form-cita select {
+  border: none;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.08);
+  border-radius: 980px;
+  padding: 0.55rem 0.9rem;
+  font-size: 0.85rem;
+}
