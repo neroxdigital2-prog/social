@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import crypto from "crypto";
 
 export const maxDuration = 60;
 
@@ -9,7 +10,7 @@ const CRON_SECRET = process.env.CRON_SECRET!;
 const GRAPH_VERSION = "v21.0";
 
 interface RedConectadaResumen {
-  red: "FACEBOOK" | "INSTAGRAM" | "LINKEDIN" | "TIKTOK" | "GOOGLE";
+  red: "FACEBOOK" | "INSTAGRAM" | "LINKEDIN" | "TIKTOK" | "GOOGLE" | "TWITTER";
   accessToken: string;
   cuentaExterna: string;
 }
@@ -68,6 +69,82 @@ async function publicarEnInstagram(igId: string, token: string, texto: string, i
   return { postIdExterno: publicarData.id };
 }
 
+// --- Firma OAuth 1.0a para la API de X (Twitter) ---
+function firmarOAuth1(
+  method: string,
+  url: string,
+  oauthParams: Record<string, string>,
+  apiSecret: string,
+  accessTokenSecret: string
+): string {
+  const encode = (s: string) => encodeURIComponent(s).replace(/[!*()']/g, (c) => "%" + c.charCodeAt(0).toString(16).toUpperCase());
+
+  const paramString = Object.keys(oauthParams)
+    .sort()
+    .map((k) => `${encode(k)}=${encode(oauthParams[k])}`)
+    .join("&");
+
+  const baseString = [method.toUpperCase(), encode(url), encode(paramString)].join("&");
+  const signingKey = `${encode(apiSecret)}&${encode(accessTokenSecret)}`;
+  return crypto.createHmac("sha1", signingKey).update(baseString).digest("base64");
+}
+
+function encabezadoOAuth1(
+  method: string,
+  url: string,
+  apiKey: string,
+  apiSecret: string,
+  accessToken: string,
+  accessTokenSecret: string
+): string {
+  const encode = (s: string) => encodeURIComponent(s).replace(/[!*()']/g, (c) => "%" + c.charCodeAt(0).toString(16).toUpperCase());
+
+  const oauthParams: Record<string, string> = {
+    oauth_consumer_key: apiKey,
+    oauth_nonce: crypto.randomBytes(16).toString("hex"),
+    oauth_signature_method: "HMAC-SHA1",
+    oauth_timestamp: String(Math.floor(Date.now() / 1000)),
+    oauth_token: accessToken,
+    oauth_version: "1.0",
+  };
+
+  const firma = firmarOAuth1(method, url, oauthParams, apiSecret, accessTokenSecret);
+  const conFirma = { ...oauthParams, oauth_signature: firma };
+
+  return (
+    "OAuth " +
+    Object.keys(conFirma)
+      .sort()
+      .map((k) => `${encode(k)}="${encode(conFirma[k])}"`)
+      .join(", ")
+  );
+}
+
+async function publicarEnX(accessTokenPack: string, texto: string) {
+  let creds: { apiKey: string; apiSecret: string; accessToken: string; accessTokenSecret: string };
+  try {
+    creds = JSON.parse(accessTokenPack);
+  } catch {
+    return { error: "Credenciales de X mal formadas" };
+  }
+
+  const url = "https://api.twitter.com/2/tweets";
+  const authHeader = encabezadoOAuth1("POST", url, creds.apiKey, creds.apiSecret, creds.accessToken, creds.accessTokenSecret);
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: authHeader },
+    body: JSON.stringify({ text: texto.slice(0, 280) }),
+  });
+  const data = await res.json().catch(() => ({}));
+
+  if (!res.ok || data.errors) {
+    const mensaje = data?.detail || data?.errors?.[0]?.message || data?.title || "Error desconocido publicando en X";
+    return { error: mensaje };
+  }
+  return { postIdExterno: data?.data?.id };
+}
+
 export async function GET(req: NextRequest) {
   const authHeader = req.headers.get("authorization");
   const tokenRecibido = authHeader?.replace("Bearer ", "");
@@ -95,6 +172,8 @@ export async function GET(req: NextRequest) {
         resultado = await publicarEnFacebook(red.cuentaExterna, red.accessToken, textoCompleto, pub.imagenUrl);
       } else if (red.red === "INSTAGRAM") {
         resultado = await publicarEnInstagram(red.cuentaExterna, red.accessToken, textoCompleto, pub.imagenUrl);
+      } else if (red.red === "TWITTER") {
+        resultado = await publicarEnX(red.accessToken, textoCompleto);
       } else {
         continue; // LinkedIn/TikTok/Google: no implementado todavía
       }
