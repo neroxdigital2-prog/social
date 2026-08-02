@@ -16,6 +16,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <div className="app-nav-links">
             <a href="/generador">Generador</a>
             <a href="/calendario">Calendario</a>
+            <a href="/biblioteca">Biblioteca</a>
             <a href="/crm">CRM</a>
             <a href="/whatsapp">WhatsApp</a>
             <a href="/agenda">Agenda</a>
