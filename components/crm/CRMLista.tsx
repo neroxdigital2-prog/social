@@ -35,6 +35,21 @@ function formatearFecha(iso: string) {
   return new Date(iso).toLocaleDateString("es-ES", { day: "2-digit", month: "short", year: "numeric" });
 }
 
+interface Interaccion {
+  tipo: string;
+  contenido: string;
+  createdAt: string;
+}
+
+interface LeadDetalle extends Lead {
+  notas: string | null;
+  interacciones: Interaccion[];
+}
+
+function formatearFechaHora(iso: string) {
+  return new Date(iso).toLocaleString("es-ES", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
+}
+
 export function CRMLista({ leads, empresaId }: { leads: Lead[]; empresaId: string }) {
   const [items, setItems] = useState(leads);
   const [filtro, setFiltro] = useState("TODOS");
@@ -45,6 +60,26 @@ export function CRMLista({ leads, empresaId }: { leads: Lead[]; empresaId: strin
   const [telefono, setTelefono] = useState("");
   const [email, setEmail] = useState("");
   const [creando, setCreando] = useState(false);
+
+  const [expandidoId, setExpandidoId] = useState<string | null>(null);
+  const [detalles, setDetalles] = useState<Record<string, LeadDetalle>>({});
+  const [cargandoDetalle, setCargandoDetalle] = useState<string | null>(null);
+
+  async function alternarDetalle(id: string) {
+    if (expandidoId === id) {
+      setExpandidoId(null);
+      return;
+    }
+    setExpandidoId(id);
+    if (detalles[id]) return;
+    setCargandoDetalle(id);
+    const res = await fetch(`/api/leads/${id}`);
+    const data = await res.json().catch(() => null);
+    setCargandoDetalle(null);
+    if (res.ok && data?.id) {
+      setDetalles((prev) => ({ ...prev, [id]: data }));
+    }
+  }
 
   const leadsFiltrados = filtro === "TODOS" ? items : items.filter((l) => l.estado === filtro);
 
@@ -157,28 +192,59 @@ export function CRMLista({ leads, empresaId }: { leads: Lead[]; empresaId: strin
       ) : (
         <div className="crm-lista">
           {leadsFiltrados.map((lead) => (
-            <div key={lead.id} className="crm-item">
-              <div className="crm-item-info">
-                <strong className="crm-item-nombre">{lead.nombre}</strong>
-                <div className="crm-item-meta">
-                  {lead.telefono && <span>{lead.telefono}</span>}
-                  {lead.email && <span>{lead.email}</span>}
-                  <span className="crm-item-origen">{ORIGEN_LABEL[lead.origen] || lead.origen}</span>
-                  <span>{formatearFecha(lead.createdAt)}</span>
+            <div key={lead.id} className="crm-item-wrapper">
+              <div className="crm-item" onClick={() => alternarDetalle(lead.id)} style={{ cursor: "pointer" }}>
+                <div className="crm-item-info">
+                  <strong className="crm-item-nombre">{lead.nombre}</strong>
+                  <div className="crm-item-meta">
+                    {lead.telefono && <span>{lead.telefono}</span>}
+                    {lead.email && <span>{lead.email}</span>}
+                    <span className="crm-item-origen">{ORIGEN_LABEL[lead.origen] || lead.origen}</span>
+                    <span>{formatearFecha(lead.createdAt)}</span>
+                  </div>
                 </div>
+                <select
+                  className="crm-select-estado"
+                  value={lead.estado}
+                  disabled={guardandoId === lead.id}
+                  onClick={(e) => e.stopPropagation()}
+                  onChange={(e) => cambiarEstado(lead.id, e.target.value)}
+                >
+                  {ESTADOS.map((e) => (
+                    <option key={e.value} value={e.value}>
+                      {e.label}
+                    </option>
+                  ))}
+                </select>
               </div>
-              <select
-                className="crm-select-estado"
-                value={lead.estado}
-                disabled={guardandoId === lead.id}
-                onChange={(e) => cambiarEstado(lead.id, e.target.value)}
-              >
-                {ESTADOS.map((e) => (
-                  <option key={e.value} value={e.value}>
-                    {e.label}
-                  </option>
-                ))}
-              </select>
+
+              {expandidoId === lead.id && (
+                <div className="crm-detalle">
+                  {cargandoDetalle === lead.id ? (
+                    <p className="text-muted">Cargando historial…</p>
+                  ) : detalles[lead.id] ? (
+                    <>
+                      {detalles[lead.id].notas && (
+                        <p className="crm-detalle-nota">{detalles[lead.id].notas}</p>
+                      )}
+                      {detalles[lead.id].interacciones.length === 0 ? (
+                        <p className="text-muted">Sin interacciones registradas todavía.</p>
+                      ) : (
+                        <ul className="crm-cronologia">
+                          {detalles[lead.id].interacciones.map((i, idx) => (
+                            <li key={idx}>
+                              <span className="crm-cronologia-fecha">{formatearFechaHora(i.createdAt)}</span>
+                              <span>{i.contenido}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </>
+                  ) : (
+                    <p className="text-muted">No se pudo cargar el historial.</p>
+                  )}
+                </div>
+              )}
             </div>
           ))}
         </div>
