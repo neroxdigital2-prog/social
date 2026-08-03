@@ -48,12 +48,19 @@ export default async function CalendarioPage({
   const empresaId = searchParams.empresa || listaEmpresas[0]?.id;
 
   let publicaciones: Publicacion[] = [];
+  let redesConectadas: { red: string }[] = [];
   if (empresaId) {
     const data = await bridgePost(process.env.IONOS_BRIDGE_URL_PUBLICACIONES_LIST!, {
       userId: session.user.id,
       empresaId,
     });
     publicaciones = Array.isArray(data) ? data : [];
+
+    const redes = await bridgePost(process.env.IONOS_BRIDGE_URL_REDES_LIST!, {
+      userId: session.user.id,
+      empresaId,
+    });
+    redesConectadas = Array.isArray(redes) ? redes : [];
   }
 
   const offsetSemanas = Number(searchParams.semana || 0);
@@ -78,6 +85,7 @@ export default async function CalendarioPage({
             inicioSemanaISO={inicioSemana.toISOString()}
             offsetSemanas={offsetSemanas}
             empresaId={empresaId}
+            redesConectadas={redesConectadas.map((r) => r.red)}
           />
         )}
       </section>

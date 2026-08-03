@@ -63,21 +63,37 @@ function franjaDelDia(iso: string): string {
   return "Noche";
 }
 
+const NOMBRES_RED: Record<string, string> = {
+  FACEBOOK: "Facebook",
+  INSTAGRAM: "Instagram",
+  LINKEDIN: "LinkedIn",
+  TIKTOK: "TikTok",
+  TWITTER: "X",
+  GOOGLE_BUSINESS: "Google Business",
+};
+
 export function CalendarioSemana({
   publicaciones,
   inicioSemanaISO,
   offsetSemanas,
   empresaId,
+  redesConectadas,
 }: {
   publicaciones: Publicacion[];
   inicioSemanaISO: string;
   offsetSemanas: number;
   empresaId: string;
+  redesConectadas: string[];
 }) {
   const router = useRouter();
   const [items, setItems] = useState(publicaciones);
   const [guardandoId, setGuardandoId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Por defecto, todas las redes conectadas quedan seleccionadas (mismo comportamiento que antes)
+  const [redesPorPublicacion, setRedesPorPublicacion] = useState<Record<string, string[]>>(() =>
+    Object.fromEntries(publicaciones.map((p) => [p.id, [...redesConectadas]]))
+  );
+  const [guardandoRedesId, setGuardandoRedesId] = useState<string | null>(null);
 
   const inicioSemana = new Date(inicioSemanaISO);
   const diasSemana = Array.from({ length: 7 }, (_, i) => {
@@ -107,6 +123,29 @@ export function CalendarioSemana({
         p.id === id ? { ...p, fechaProgramada: fechaISO, estado: fechaISO ? "PROGRAMADA" : "BORRADOR" } : p
       )
     );
+  }
+
+  async function guardarRedes(id: string, redes: string[]) {
+    setGuardandoRedesId(id);
+    setError(null);
+    const res = await fetch(`/api/publicaciones/${id}/redes`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ redes }),
+    });
+    setGuardandoRedesId(null);
+    if (!res.ok) {
+      const data = await res.json().catch(() => null);
+      setError(data?.error || "No se pudieron guardar las redes.");
+      return;
+    }
+    setRedesPorPublicacion((prev) => ({ ...prev, [id]: redes }));
+  }
+
+  function alternarRed(id: string, red: string) {
+    const actuales = redesPorPublicacion[id] || [];
+    const nuevas = actuales.includes(red) ? actuales.filter((r) => r !== red) : [...actuales, red];
+    guardarRedes(id, nuevas);
   }
 
   function irASemana(nuevoOffset: number) {
@@ -201,6 +240,24 @@ export function CalendarioSemana({
                 <div>
                   <strong className="cal-item-titulo">{p.titulo}</strong>
                   <div className="cal-item-tipo">{p.tipo.replace(/_/g, " ")}</div>
+                  {redesConectadas.length > 0 && (
+                    <div className="cal-redes-selector" role="group" aria-label="Redes donde publicar">
+                      {redesConectadas.map((red) => {
+                        const marcada = (redesPorPublicacion[p.id] || []).includes(red);
+                        return (
+                          <label key={red} className="cal-red-checkbox">
+                            <input
+                              type="checkbox"
+                              checked={marcada}
+                              disabled={guardandoRedesId === p.id}
+                              onChange={() => alternarRed(p.id, red)}
+                            />
+                            {NOMBRES_RED[red] || red}
+                          </label>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
                 <input
                   type="datetime-local"
