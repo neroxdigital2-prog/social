@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import "./globals.css";
 import { SelectorEmpresa } from "@/components/layout/SelectorEmpresa";
 import { CerrarSesionBoton } from "@/components/layout/CerrarSesionBoton";
+import { NavLinks } from "@/components/layout/NavLinks";
 export const metadata: Metadata = { title: "Nerox Social IA" };
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -14,13 +15,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             <SelectorEmpresa />
           </Suspense>
           <div className="app-nav-links">
-            <a href="/generador">Generador</a>
-            <a href="/calendario">Calendario</a>
-            <a href="/biblioteca">Biblioteca</a>
-            <a href="/crm">CRM</a>
-            <a href="/whatsapp">WhatsApp</a>
-            <a href="/agenda">Agenda</a>
-            <a href="/configuracion">Configuración</a>
+            <Suspense fallback={null}>
+              <NavLinks />
+            </Suspense>
             <CerrarSesionBoton />
           </div>
         </nav>
