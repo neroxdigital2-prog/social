@@ -10,7 +10,6 @@ const EmpresaSchema = z.object({
   web: z.string().url().optional(),
   whatsapp: z.string().optional(),
   agenciaId: z.string().optional(),
-  // --- Campos de estrategia y marca (nuevos) ---
   publicoObjetivo: z.string().max(200).optional(),
   tonoComunicacion: z.string().optional(),
   objetivoPrincipal: z.string().optional(),
@@ -19,9 +18,9 @@ const EmpresaSchema = z.object({
   logoUrl: z.string().url().optional(),
 });
 
-const BRIDGE_LIST = process.env.IONOS_BRIDGE_URL_EMPRESAS_LIST!;
-const BRIDGE_CREATE = process.env.IONOS_BRIDGE_URL_EMPRESAS_CREATE!;
-const BRIDGE_SECRET = process.env.BRIDGE_SECRET!;
+const BRIDGE_LIST = process.env.IONOS_BRIDGE_URL_EMPRESAS_LIST;
+const BRIDGE_CREATE = process.env.IONOS_BRIDGE_URL_EMPRESAS_CREATE;
+const BRIDGE_SECRET = process.env.BRIDGE_SECRET;
 
 async function leerJsonSeguro(res: Response): Promise<{ ok: true; data: unknown } | { ok: false; texto: string }> {
   const texto = await res.text();
@@ -33,48 +32,67 @@ async function leerJsonSeguro(res: Response): Promise<{ ok: true; data: unknown 
 }
 
 export async function GET() {
-  const session = await auth();
-  if (!session?.user?.id) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  try {
+    const session = await auth();
+    if (!session?.user?.id) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
-  const res = await fetch(BRIDGE_LIST, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Bridge-Secret": BRIDGE_SECRET,
-    },
-    body: JSON.stringify({ userId: session.user.id }),
-    cache: "no-store",
-  });
+    if (!BRIDGE_LIST || !BRIDGE_SECRET) {
+      console.error("GET /api/empresas: faltan variables de entorno", { BRIDGE_LIST: !!BRIDGE_LIST, BRIDGE_SECRET: !!BRIDGE_SECRET });
+      return NextResponse.json({ error: "Configuración del servidor incompleta" }, { status: 500 });
+    }
 
-  const resultado = await leerJsonSeguro(res);
-  if (!resultado.ok) {
-    console.error("Respuesta no JSON del bridge en GET /api/empresas:", resultado.texto);
-    return NextResponse.json({ error: "El servidor de datos no respondió correctamente" }, { status: 502 });
+    const res = await fetch(BRIDGE_LIST, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Bridge-Secret": BRIDGE_SECRET },
+      body: JSON.stringify({ userId: session.user.id }),
+      cache: "no-store",
+    });
+
+    const resultado = await leerJsonSeguro(res);
+    if (!resultado.ok) {
+      console.error("Respuesta no JSON del bridge en GET /api/empresas:", resultado.texto);
+      return NextResponse.json({ error: "El servidor de datos no respondió correctamente" }, { status: 502 });
+    }
+    return NextResponse.json(resultado.data, { status: res.status });
+  } catch (error) {
+    console.error("EXCEPCIÓN en GET /api/empresas:", error instanceof Error ? error.stack : error);
+    return NextResponse.json({ error: "Error interno inesperado (GET)" }, { status: 500 });
   }
-  return NextResponse.json(resultado.data, { status: res.status });
 }
 
 export async function POST(req: NextRequest) {
-  const session = await auth();
-  if (!session?.user?.id) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  try {
+    const session = await auth();
+    if (!session?.user?.id) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
-  const body = await req.json().catch(() => ({}));
-  const parsed = EmpresaSchema.safeParse(body);
-  if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+    if (!BRIDGE_CREATE || !BRIDGE_SECRET) {
+      console.error("POST /api/empresas: faltan variables de entorno", { BRIDGE_CREATE: !!BRIDGE_CREATE, BRIDGE_SECRET: !!BRIDGE_SECRET });
+      return NextResponse.json({ error: "Configuración del servidor incompleta" }, { status: 500 });
+    }
 
-  const res = await fetch(BRIDGE_CREATE, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Bridge-Secret": BRIDGE_SECRET,
-    },
-    body: JSON.stringify({ ...parsed.data, userId: session.user.id }),
-  });
+    const body = await req.json().catch(() => ({}));
+    const parsed = EmpresaSchema.safeParse(body);
+    if (!parsed.success) {
+      return NextResponse.json({ error: parsed.error.flatten() }, { status: 400 });
+    }
 
-  const resultado = await leerJsonSeguro(res);
-  if (!resultado.ok) {
-    console.error("Respuesta no JSON del bridge en POST /api/empresas:", resultado.texto);
-    return NextResponse.json({ error: "El servidor de datos no respondió correctamente al crear la empresa" }, { status: 502 });
+    const res = await fetch(BRIDGE_CREATE, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Bridge-Secret": BRIDGE_SECRET },
+      body: JSON.stringify({ ...parsed.data, userId: session.user.id }),
+    });
+
+    const resultado = await leerJsonSeguro(res);
+    if (!resultado.ok) {
+      console.error("Respuesta no JSON del bridge en POST /api/empresas:", resultado.texto);
+      return NextResponse.json({ error: "El servidor de datos no respondió correctamente al crear la empresa", detalle: resultado.texto.slice(0, 500) }, { status: 502 });
+    }
+    return NextResponse.json(resultado.data, { status: res.status });
+  } catch (error) {
+    console.error("EXCEPCIÓN en POST /api/empresas:", error instanceof Error ? error.stack : error);
+    return NextResponse.json(
+      { error: "Error interno inesperado (POST)", mensaje: error instanceof Error ? error.message : String(error) },
+      { status: 500 }
+    );
   }
-  return NextResponse.json(resultado.data, { status: res.status });
 }
