@@ -68,22 +68,34 @@ export async function GET(req: NextRequest) {
       return NextResponse.redirect(new URL("/configuracion?redes_error=sin_paginas", req.url));
     }
 
-    // Toma la primera página (caso más común: una empresa, una página)
-    const pagina = paginas[0];
-    await guardarRed(empresaId, "FACEBOOK", pagina.access_token, pagina.id, pagina.name);
+    if (paginas.length === 1) {
+      // Solo hay una página disponible: no hace falta elegir, se conecta directamente
+      const pagina = paginas[0];
+      await guardarRed(empresaId, "FACEBOOK", pagina.access_token, pagina.id, pagina.name);
 
-    // 4. Comprueba si esa página tiene una cuenta de Instagram Business vinculada
-    const igRes = await fetch(
-      `https://graph.facebook.com/${GRAPH_VERSION}/${pagina.id}?fields=instagram_business_account{id,username}&access_token=${pagina.access_token}`
-    );
-    const igData = await igRes.json();
-    const igAccount = igData.instagram_business_account;
+      const igRes = await fetch(
+        `https://graph.facebook.com/${GRAPH_VERSION}/${pagina.id}?fields=instagram_business_account{id,username}&access_token=${pagina.access_token}`
+      );
+      const igData = await igRes.json();
+      const igAccount = igData.instagram_business_account;
+      if (igAccount?.id) {
+        await guardarRed(empresaId, "INSTAGRAM", pagina.access_token, igAccount.id, igAccount.username);
+      }
 
-    if (igAccount?.id) {
-      await guardarRed(empresaId, "INSTAGRAM", pagina.access_token, igAccount.id, igAccount.username);
+      return NextResponse.redirect(new URL(`/configuracion?redes_ok=1&empresa=${empresaId}`, req.url));
     }
 
-    return NextResponse.redirect(new URL(`/configuracion?redes_ok=1&empresa=${empresaId}`, req.url));
+    // Varias páginas disponibles: guarda la lista temporalmente (10 min) y deja elegir al usuario
+    const pendiente = Buffer.from(JSON.stringify({ empresaId, paginas })).toString("base64url");
+    const resRedirect = NextResponse.redirect(new URL(`/configuracion/elegir-pagina?empresa=${empresaId}`, req.url));
+    resRedirect.cookies.set("fb_pag_pend", pendiente, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "lax",
+      maxAge: 600,
+      path: "/",
+    });
+    return resRedirect;
   } catch (error) {
     console.error("Error en callback de Facebook:", error);
     return NextResponse.redirect(new URL("/configuracion?redes_error=fallo_interno", req.url));
