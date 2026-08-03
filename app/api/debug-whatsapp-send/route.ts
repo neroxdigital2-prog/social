@@ -25,8 +25,11 @@ export async function GET(req: NextRequest) {
     body: JSON.stringify({
       messaging_product: "whatsapp",
       to: para,
-      type: "text",
-      text: { body: "Mensaje de prueba desde Nerox Social IA" },
+      type: "template",
+      template: {
+        name: "hello_world",
+        language: { code: "en_US" },
+      },
     }),
   });
 
