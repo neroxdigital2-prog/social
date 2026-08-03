@@ -6,9 +6,11 @@ import { useRouter } from "next/navigation";
 export function SelectorPaginaFacebook({
   paginas,
   empresaId,
+  seleccionId,
 }: {
   paginas: { id: string; name: string }[];
   empresaId: string;
+  seleccionId: string;
 }) {
   const router = useRouter();
   const [conectandoId, setConectandoId] = useState<string | null>(null);
@@ -20,7 +22,7 @@ export function SelectorPaginaFacebook({
     const res = await fetch("/api/redes/facebook/elegir", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ pageId }),
+      body: JSON.stringify({ seleccionId, pageId }),
     });
     const data = await res.json().catch(() => null);
     if (!res.ok) {

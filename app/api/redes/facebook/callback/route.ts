@@ -85,17 +85,20 @@ export async function GET(req: NextRequest) {
       return NextResponse.redirect(new URL(`/configuracion?redes_ok=1&empresa=${empresaId}`, req.url));
     }
 
-    // Varias páginas disponibles: guarda la lista temporalmente (10 min) y deja elegir al usuario
-    const pendiente = Buffer.from(JSON.stringify({ empresaId, paginas })).toString("base64url");
-    const resRedirect = NextResponse.redirect(new URL(`/configuracion/elegir-pagina?empresa=${empresaId}`, req.url));
-    resRedirect.cookies.set("fb_pag_pend", pendiente, {
-      httpOnly: true,
-      secure: true,
-      sameSite: "lax",
-      maxAge: 600,
-      path: "/",
+    // Varias páginas disponibles: guarda la lista temporalmente en la BD y deja elegir al usuario
+    const guardarRes = await fetch(process.env.IONOS_BRIDGE_URL_FACEBOOK_SELECCION_GUARDAR!, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Bridge-Secret": BRIDGE_SECRET },
+      body: JSON.stringify({ empresaId, paginas }),
     });
-    return resRedirect;
+    const guardarData = await guardarRes.json().catch(() => null);
+    if (!guardarData?.id) {
+      return NextResponse.redirect(new URL("/configuracion?redes_error=fallo_interno", req.url));
+    }
+
+    return NextResponse.redirect(
+      new URL(`/configuracion/elegir-pagina?empresa=${empresaId}&seleccion=${guardarData.id}`, req.url)
+    );
   } catch (error) {
     console.error("Error en callback de Facebook:", error);
     return NextResponse.redirect(new URL("/configuracion?redes_error=fallo_interno", req.url));

@@ -1,4 +1,3 @@
-import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { SelectorPaginaFacebook } from "@/components/configuracion/SelectorPaginaFacebook";
@@ -8,20 +7,31 @@ interface PaginaFacebook {
   name: string;
 }
 
-export default async function ElegirPaginaPage() {
+export default async function ElegirPaginaPage({
+  searchParams,
+}: {
+  searchParams: { empresa?: string; seleccion?: string };
+}) {
   const session = await auth();
   if (!session?.user) redirect("/login");
 
-  const cookieStore = cookies();
-  const pendiente = cookieStore.get("fb_pag_pend")?.value;
-
+  const seleccionId = searchParams.seleccion || "";
   let paginas: PaginaFacebook[] = [];
-  let empresaId = "";
-  if (pendiente) {
+  let empresaId = searchParams.empresa || "";
+
+  if (seleccionId) {
     try {
-      const decoded = JSON.parse(Buffer.from(pendiente, "base64url").toString("utf-8"));
-      empresaId = decoded.empresaId;
-      paginas = (decoded.paginas || []).map((p: { id: string; name: string }) => ({ id: p.id, name: p.name }));
+      const res = await fetch(process.env.IONOS_BRIDGE_URL_FACEBOOK_SELECCION_LEER!, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Bridge-Secret": process.env.BRIDGE_SECRET! },
+        body: JSON.stringify({ id: seleccionId }),
+        cache: "no-store",
+      });
+      const data = await res.json();
+      if (res.ok) {
+        empresaId = data.empresaId || empresaId;
+        paginas = (data.paginas || []).map((p: { id: string; name: string }) => ({ id: p.id, name: p.name }));
+      }
     } catch {
       paginas = [];
     }
@@ -42,7 +52,7 @@ export default async function ElegirPaginaPage() {
             <a href={`/configuracion?empresa=${empresaId}`}>Vuelve a Configuración e inténtalo de nuevo.</a>
           </p>
         ) : (
-          <SelectorPaginaFacebook paginas={paginas} empresaId={empresaId} />
+          <SelectorPaginaFacebook paginas={paginas} empresaId={empresaId} seleccionId={seleccionId} />
         )}
       </section>
     </main>
