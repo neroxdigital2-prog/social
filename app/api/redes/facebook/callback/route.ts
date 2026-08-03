@@ -5,6 +5,7 @@ const FACEBOOK_APP_SECRET = process.env.FACEBOOK_APP_SECRET!;
 const REDIRECT_URI = process.env.FACEBOOK_REDIRECT_URI!;
 const BRIDGE_SECRET = process.env.BRIDGE_SECRET!;
 const BRIDGE_GUARDAR = process.env.IONOS_BRIDGE_URL_REDES_GUARDAR!;
+const BRIDGE_SELECCION_GUARDAR = process.env.IONOS_BRIDGE_URL_FACEBOOK_SELECCION_GUARDAR;
 const GRAPH_VERSION = "v21.0";
 
 interface PaginaFacebook {
@@ -65,7 +66,7 @@ export async function GET(req: NextRequest) {
     const paginas: PaginaFacebook[] = pagesData.data || [];
 
     if (paginas.length === 0) {
-      return NextResponse.redirect(new URL("/configuracion?redes_error=sin_paginas", req.url));
+      return NextResponse.redirect(new URL(`/configuracion?redes_error=sin_paginas&empresa=${empresaId}`, req.url));
     }
 
     if (paginas.length === 1) {
@@ -86,21 +87,30 @@ export async function GET(req: NextRequest) {
     }
 
     // Varias páginas disponibles: guarda la lista temporalmente en la BD y deja elegir al usuario
-    const guardarRes = await fetch(process.env.IONOS_BRIDGE_URL_FACEBOOK_SELECCION_GUARDAR!, {
+    if (!BRIDGE_SELECCION_GUARDAR) {
+      console.error("Callback Facebook: falta IONOS_BRIDGE_URL_FACEBOOK_SELECCION_GUARDAR en el entorno");
+      return NextResponse.redirect(
+        new URL(`/configuracion?redes_error=falta_env_seleccion&empresa=${empresaId}`, req.url)
+      );
+    }
+    const guardarRes = await fetch(BRIDGE_SELECCION_GUARDAR, {
       method: "POST",
       headers: { "Content-Type": "application/json", "X-Bridge-Secret": BRIDGE_SECRET },
       body: JSON.stringify({ empresaId, paginas }),
     });
     const guardarData = await guardarRes.json().catch(() => null);
     if (!guardarData?.id) {
-      return NextResponse.redirect(new URL("/configuracion?redes_error=fallo_interno", req.url));
+      console.error("Callback Facebook: el bridge de selección no devolvió id", guardarData, guardarRes.status);
+      return NextResponse.redirect(
+        new URL(`/configuracion?redes_error=fallo_interno&empresa=${empresaId}`, req.url)
+      );
     }
 
     return NextResponse.redirect(
       new URL(`/configuracion/elegir-pagina?empresa=${empresaId}&seleccion=${guardarData.id}`, req.url)
     );
   } catch (error) {
-    console.error("Error en callback de Facebook:", error);
-    return NextResponse.redirect(new URL("/configuracion?redes_error=fallo_interno", req.url));
+    console.error("Error en callback de Facebook:", error instanceof Error ? error.stack : error);
+    return NextResponse.redirect(new URL(`/configuracion?redes_error=fallo_interno&empresa=${empresaId}`, req.url));
   }
 }
