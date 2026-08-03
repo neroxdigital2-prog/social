@@ -884,3 +884,75 @@ select option {
   padding: 0.55rem 0.9rem;
   font-size: 0.85rem;
 }
+/* ============================================================
+   AÑADIR AL FINAL DE globals.css
+   Estilos para el EmpresaForm mejorado: fieldsets, ayuda de campo,
+   contador de caracteres y selector de color.
+   ============================================================ */
+
+.form-fieldset {
+  border: none;
+  padding: 0;
+  margin: 0 0 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.form-fieldset:last-of-type {
+  margin-bottom: 0;
+}
+
+.form-legend {
+  font-weight: 700;
+  font-size: 1.05rem;
+  color: var(--color-text);
+  letter-spacing: -0.01em;
+  padding: 0 0 0.35rem;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.08);
+  margin-bottom: 0.25rem;
+  width: 100%;
+}
+
+.field-help-intro {
+  margin: -0.25rem 0 0.25rem;
+  font-size: 0.85rem;
+}
+
+.field-help {
+  margin: 0.35rem 0 0;
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+}
+
+.field-char-count {
+  font-weight: 400;
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+}
+
+.color-picker-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.color-swatch-input {
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: none;
+  border-radius: 10px;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.1);
+  cursor: pointer;
+  background: none;
+}
+
+.color-swatch-input::-webkit-color-swatch-wrapper {
+  padding: 3px;
+}
+
+.color-swatch-input::-webkit-color-swatch {
+  border: none;
+  border-radius: 7px;
+}
