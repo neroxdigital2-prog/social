@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 
 const TONOS_COMUNICACION = [
@@ -20,6 +20,21 @@ const OBJETIVOS_PRINCIPALES = [
 ];
 
 const MAX_PUBLICO_OBJETIVO = 200;
+const MIMES_LOGO_PERMITIDOS = ["image/png", "image/jpeg", "image/webp"];
+const MAX_LOGO_BYTES = 5 * 1024 * 1024;
+
+function archivoABase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const resultado = reader.result as string;
+      // Quita el prefijo "data:image/png;base64," dejando solo el contenido
+      resolve(resultado.split(",")[1] || "");
+    };
+    reader.onerror = () => reject(new Error("No se pudo leer el archivo"));
+    reader.readAsDataURL(file);
+  });
+}
 
 export function EmpresaForm() {
   const router = useRouter();
@@ -32,6 +47,12 @@ export function EmpresaForm() {
   const [publicoObjetivo, setPublicoObjetivo] = useState("");
   const [colorPrimario, setColorPrimario] = useState("#6D28D9");
   const [agencias, setAgencias] = useState<{ id: string; nombre: string }[]>([]);
+
+  const [logoUrl, setLogoUrl] = useState<string | null>(null);
+  const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [subiendoLogo, setSubiendoLogo] = useState(false);
+  const [errorLogo, setErrorLogo] = useState("");
+  const inputLogoRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     fetch("/api/agencias").then((r) => r.json()).then((data) => setAgencias(data.propias || [])).catch(() => {});
@@ -61,13 +82,66 @@ export function EmpresaForm() {
     }
   }
 
+  async function handleLogoSeleccionado(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setErrorLogo("");
+
+    if (!MIMES_LOGO_PERMITIDOS.includes(file.type)) {
+      setErrorLogo("Formato no permitido. Usa PNG, JPG o WEBP.");
+      return;
+    }
+    if (file.size > MAX_LOGO_BYTES) {
+      setErrorLogo("El archivo supera el límite de 5 MB.");
+      return;
+    }
+
+    setLogoPreview(URL.createObjectURL(file));
+    setSubiendoLogo(true);
+
+    try {
+      const fileBase64 = await archivoABase64(file);
+      const res = await fetch("/api/uploads/logo", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          empresaId: "temp", // se reasocia al guardar la empresa; el archivo ya queda accesible por URL
+          fileBase64,
+          fileName: file.name,
+          mimeType: file.type,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        setErrorLogo(data?.error || "No se pudo subir el logo.");
+        setLogoPreview(null);
+        return;
+      }
+
+      setLogoUrl(data.url);
+    } catch {
+      setErrorLogo("Error de red al subir el logo.");
+      setLogoPreview(null);
+    } finally {
+      setSubiendoLogo(false);
+    }
+  }
+
+  function quitarLogo() {
+    setLogoUrl(null);
+    setLogoPreview(null);
+    setErrorLogo("");
+    if (inputLogoRef.current) inputLogoRef.current.value = "";
+  }
+
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     setLoading(true);
     setError("");
     const formData = new FormData(e.currentTarget);
     const web = (formData.get("web") as string)?.trim();
-    const logoUrl = (formData.get("logoUrl") as string)?.trim();
 
     const payload = {
       nombre: formData.get("nombre"),
@@ -227,9 +301,25 @@ export function EmpresaForm() {
               <span className="text-muted">{colorPrimario}</span>
             </div>
           </div>
+
           <div className="field">
-            <label htmlFor="logoUrl">URL del logo (opcional)</label>
-            <input id="logoUrl" name="logoUrl" type="url" placeholder="https://tuempresa.com/logo.png" />
+            <label htmlFor="logoFile">Logo (opcional, PNG/JPG/WEBP, máx. 5 MB)</label>
+            <input
+              id="logoFile"
+              ref={inputLogoRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              onChange={handleLogoSeleccionado}
+              disabled={subiendoLogo}
+            />
+            {subiendoLogo && <p className="field-help" aria-live="polite">Subiendo logo...</p>}
+            {errorLogo && <p role="alert" className="field-error">{errorLogo}</p>}
+            {logoPreview && !subiendoLogo && !errorLogo && (
+              <div className="logo-preview-row">
+                <img src={logoPreview} alt="Vista previa del logo" className="logo-preview-img" />
+                <button type="button" className="btn-secondary" onClick={quitarLogo}>Quitar</button>
+              </div>
+            )}
           </div>
         </div>
       </fieldset>
@@ -244,7 +334,7 @@ export function EmpresaForm() {
         </div>
       )}
       {error && <p role="alert" className="field-error">{error}</p>}
-      <button type="submit" className="btn-primary" disabled={loading} aria-busy={loading}>{loading ? "Guardando..." : "Guardar empresa"}</button>
+      <button type="submit" className="btn-primary" disabled={loading || subiendoLogo} aria-busy={loading}>{loading ? "Guardando..." : "Guardar empresa"}</button>
     </form>
   );
 }
