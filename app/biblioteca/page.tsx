@@ -1,6 +1,7 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { PublicacionCard } from "@/components/biblioteca/PublicacionCard";
+import { CrearManualForm } from "@/components/biblioteca/CrearManualForm";
 
 interface Publicacion {
   id: string;
@@ -52,6 +53,11 @@ export default async function BibliotecaPage({ searchParams }: { searchParams: {
         <h1>Biblioteca de publicaciones</h1>
         <p className="text-muted">{publicaciones.length} publicaciones generadas</p>
       </header>
+      {empresaId && (
+        <div style={{ marginBottom: "1.5rem" }}>
+          <CrearManualForm empresaId={empresaId} />
+        </div>
+      )}
       <section className="publicaciones-grid">
         {publicaciones.map((pub) => (
           <PublicacionCard key={pub.id} publicacion={{ ...pub, hashtags: pub.hashtags as string[] }} />

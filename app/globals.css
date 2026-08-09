@@ -139,8 +139,29 @@ select option {
 .btn-generar-imagen:disabled { opacity: 0.6; cursor: wait; }
 .pub-tipo { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; font-weight: 600; color: var(--color-secondary); }
 .pub-hashtags { display: flex; flex-wrap: wrap; gap: 0.35rem; }
-.tag { color: var(--color-primary); font-size: 0.8rem; }
+
+.pub-card-top { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; }
+.pub-card-acciones { display: flex; align-items: center; gap: 0.6rem; }
+.pub-btn-link { background: none; border: none; padding: 0; font-size: 0.78rem; font-weight: 500; color: #6D28D9; cursor: pointer; }
+.pub-btn-link:hover { text-decoration: underline; }
+.pub-btn-danger { color: var(--color-error); }
+
+.pub-imagen-acciones { display: flex; gap: 0.5rem; }
+.pub-imagen-acciones .btn-generar-imagen { flex: 1; }
+
+.pub-edicion { display: flex; flex-direction: column; gap: 0.5rem; }
+.pub-edicion-input, .pub-edicion-textarea {
+  width: 100%;
+  border: 1px solid var(--color-border, #d2d2d7);
+  border-radius: 10px;
+  padding: 0.5rem 0.7rem;
+  font-family: inherit;
+  font-size: 0.9rem;
+  box-sizing: border-box;
+}
+
 .pub-estado { align-self: flex-start; font-size: 0.72rem; font-weight: 600; padding: 0.25rem 0.65rem; border-radius: 999px; }
+.tag { color: var(--color-primary); font-size: 0.8rem; }
 .estado-borrador { background: hsl(0 0% 0% / 0.06); color: var(--color-text-muted); }
 .estado-aprobada { background: hsl(142 65% 32% / 0.12); color: var(--color-success); }
 .estado-rechazada { background: hsl(0 74% 45% / 0.12); color: var(--color-error); }

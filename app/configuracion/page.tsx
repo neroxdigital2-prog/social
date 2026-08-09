@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { ConfiguracionApiKeys } from "@/components/configuracion/ConfiguracionApiKeys";
 import { RedesConectadas } from "@/components/configuracion/RedesConectadas";
 import { ConectarX } from "@/components/configuracion/ConectarX";
+import { EditarEmpresa } from "@/components/configuracion/EditarEmpresa";
 
 async function bridgePost(url: string | undefined, body: unknown) {
   if (!url) return null;
@@ -25,6 +26,7 @@ export default async function ConfiguracionPage({ searchParams }: { searchParams
   const empresas = await bridgePost(process.env.IONOS_BRIDGE_URL_EMPRESAS_LIST, { userId: session.user.id });
   const listaEmpresas = Array.isArray(empresas) ? empresas : [];
   const empresaId = searchParams.empresa || listaEmpresas[0]?.id;
+  const empresaActual = listaEmpresas.find((e: { id: string }) => e.id === empresaId) || null;
 
   let redesConectadas: { red: string }[] = [];
   if (empresaId) {
@@ -42,6 +44,7 @@ export default async function ConfiguracionPage({ searchParams }: { searchParams
         <h1>Configuración</h1>
         <p className="text-muted">Gestiona tus preferencias y claves de API</p>
       </header>
+      {empresaId && empresaActual && <EditarEmpresa empresa={empresaActual} />}
       {empresaId && (
         <section className="form-card">
           <h2>Redes sociales conectadas</h2>
