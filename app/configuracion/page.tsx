@@ -66,6 +66,15 @@ export default async function ConfiguracionPage({ searchParams }: { searchParams
         </p>
         <ConfiguracionApiKeys />
       </section>
+      <section className="form-card">
+        <h2>Estado del sistema</h2>
+        <p className="text-muted" style={{ marginTop: 0 }}>
+          Revisa si todos los bridges de IONOS están respondiendo correctamente.
+        </p>
+        <a href="/salud" className="btn-secondary" style={{ textDecoration: "none", display: "inline-block" }}>
+          Ver estado del sistema
+        </a>
+      </section>
     </main>
   );
 }
