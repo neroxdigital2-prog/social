@@ -31,6 +31,7 @@ export default async function DashboardPage() {
       <section className="stats-grid">
         <article className="stat-card"><span className="stat-number">{empresas}</span><span className="stat-label">Empresas registradas</span></article>
       </section>
+      <a href="/empresas" className="btn-primary btn-large" style={{ textDecoration: "none" }}>Ver mis empresas</a>
       <a href="/empresas/nueva" className="btn-primary btn-large">+ Registrar empresa</a>
       <a href="/generador" className="btn-primary btn-large">+ Generar contenido con IA</a>
     </main>
