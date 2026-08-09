@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 
 interface Publicacion {
   id: string;
+  empresaId: string;
   tipo: string;
   titulo: string;
   texto: string;
@@ -133,6 +134,35 @@ export function PublicacionCard({ publicacion }: { publicacion: Publicacion }) {
     router.refresh();
   }
 
+  const [duplicando, setDuplicando] = useState(false);
+
+  async function duplicarPublicacion() {
+    setDuplicando(true);
+    setError(null);
+
+    const res = await fetch("/api/publicaciones", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        empresaId: publicacion.empresaId,
+        tipo: publicacion.tipo,
+        titulo: `${titulo} (copia)`,
+        texto,
+        hashtags: publicacion.hashtags,
+        imagenUrl: imagenUrl || "",
+      }),
+    });
+    const data = await res.json().catch(() => ({}));
+    setDuplicando(false);
+
+    if (!res.ok) {
+      setError(data?.error || "No se pudo duplicar la publicación.");
+      return;
+    }
+
+    router.refresh();
+  }
+
   async function borrarPublicacion() {
     setBorrando(true);
     setError(null);
@@ -156,6 +186,9 @@ export function PublicacionCard({ publicacion }: { publicacion: Publicacion }) {
         <div className="pub-card-acciones">
           <button type="button" className="pub-btn-link" onClick={() => setEditando((v) => !v)}>
             {editando ? "Cancelar" : "Editar"}
+          </button>
+          <button type="button" className="pub-btn-link" disabled={duplicando} onClick={duplicarPublicacion}>
+            {duplicando ? "Duplicando…" : "Duplicar"}
           </button>
           {confirmandoBorrado ? (
             <>

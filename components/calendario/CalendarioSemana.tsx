@@ -214,7 +214,11 @@ export function CalendarioSemana({
                         <button
                           type="button"
                           className="cal-btn-quitar"
-                          onClick={() => reprogramar(p.id, null)}
+                          onClick={() => {
+                            if (window.confirm(`¿Quitar la fecha programada de "${p.titulo}"? Volverá a estar sin programar.`)) {
+                              reprogramar(p.id, null);
+                            }
+                          }}
                           disabled={guardandoId === p.id}
                         >
                           Quitar
