@@ -113,6 +113,26 @@ export function PublicacionCard({ publicacion }: { publicacion: Publicacion }) {
     }
   }
 
+  async function quitarImagen() {
+    setSubiendo(true);
+    setError(null);
+
+    const res = await fetch(`/api/publicaciones/${publicacion.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ imagenUrl: "" }),
+    });
+    const data = await res.json().catch(() => ({}));
+    setSubiendo(false);
+
+    if (!res.ok) {
+      setError(data?.error || "No se pudo quitar la imagen.");
+      return;
+    }
+
+    setImagenUrl(null);
+  }
+
   async function guardarEdicion() {
     setGuardando(true);
     setError(null);
@@ -208,8 +228,30 @@ export function PublicacionCard({ publicacion }: { publicacion: Publicacion }) {
       </div>
 
       {imagenUrl ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={imagenUrl} alt={titulo} className="pub-imagen" />
+        <div>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={imagenUrl} alt={titulo} className="pub-imagen" />
+          <div className="pub-imagen-acciones">
+            <button
+              type="button"
+              onClick={() => inputArchivoRef.current?.click()}
+              disabled={subiendo}
+              className="pub-btn-link"
+            >
+              {subiendo ? "Subiendo…" : "Cambiar imagen"}
+            </button>
+            <button type="button" onClick={quitarImagen} disabled={subiendo} className="pub-btn-link pub-btn-danger">
+              Quitar imagen
+            </button>
+          </div>
+          <input
+            ref={inputArchivoRef}
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            style={{ display: "none" }}
+            onChange={subirImagenManual}
+          />
+        </div>
       ) : (
         <div className="pub-imagen-acciones">
           <button type="button" onClick={generarImagenIA} disabled={generando} className="btn-generar-imagen">
