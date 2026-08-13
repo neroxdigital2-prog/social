@@ -18,7 +18,7 @@ async function chatGemini(systemPrompt: string, userPrompt: string, apiKey: stri
       body: JSON.stringify({
         contents: [{ parts: [{ text: userPrompt }] }],
         systemInstruction: { parts: [{ text: systemPrompt }] },
-        generationConfig: { temperature: 0.7, maxOutputTokens: 400 },
+        generationConfig: { temperature: 0.7, maxOutputTokens: 800 },
       }),
     });
     if (!res.ok) {
@@ -41,7 +41,7 @@ async function chatGroq(systemPrompt: string, userPrompt: string, apiKey: string
       body: JSON.stringify({
         model: "llama-3.3-70b-versatile",
         temperature: 0.7,
-        max_tokens: 400,
+        max_tokens: 800,
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
@@ -68,7 +68,7 @@ async function chatCerebras(systemPrompt: string, userPrompt: string, apiKey: st
       body: JSON.stringify({
         model: "llama-3.3-70b",
         temperature: 0.7,
-        max_tokens: 400,
+        max_tokens: 800,
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
@@ -100,7 +100,7 @@ async function chatOpenRouter(systemPrompt: string, userPrompt: string, apiKey: 
       body: JSON.stringify({
         model: "openrouter/free",
         temperature: 0.7,
-        max_tokens: 400,
+        max_tokens: 800,
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
