@@ -5,9 +5,16 @@ import { useRouter } from "next/navigation";
 
 interface EmpresaOpcion { id: string; nombre: string; }
 
-export function GeneradorForm({ empresas }: { empresas: EmpresaOpcion[] }) {
+export function GeneradorForm({
+  empresas,
+  empresaIdInicial,
+}: {
+  empresas: EmpresaOpcion[];
+  empresaIdInicial?: string;
+}) {
   const router = useRouter();
-  const [empresaId, setEmpresaId] = useState(empresas[0]?.id ?? "");
+  const empresaValida = empresaIdInicial && empresas.some((e) => e.id === empresaIdInicial);
+  const [empresaId, setEmpresaId] = useState(empresaValida ? empresaIdInicial! : empresas[0]?.id ?? "");
   const [cantidad, setCantidad] = useState(10);
   const [tema, setTema] = useState("");
   const [loading, setLoading] = useState(false);

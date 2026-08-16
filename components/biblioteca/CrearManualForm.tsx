@@ -18,7 +18,7 @@ export function CrearManualForm({ empresaId }: { empresaId: string }) {
   const router = useRouter();
   const inputArchivoRef = useRef<HTMLInputElement>(null);
 
-  const [abierto, setAbierto] = useState(false);
+  const [modo, setModo] = useState<"cerrado" | "eleccion" | "manual">("cerrado");
   const [tipo, setTipo] = useState(TIPOS[0]);
   const [titulo, setTitulo] = useState("");
   const [texto, setTexto] = useState("");
@@ -91,15 +91,38 @@ export function CrearManualForm({ empresaId }: { empresaId: string }) {
     setTexto("");
     setHashtagsTexto("");
     setImagenUrl(null);
-    setAbierto(false);
+    setModo("cerrado");
     router.refresh();
   }
 
-  if (!abierto) {
+  if (modo === "cerrado") {
     return (
-      <button type="button" className="btn-primary" onClick={() => setAbierto(true)}>
-        + Crear publicación manual
+      <button type="button" className="btn-primary" onClick={() => setModo("eleccion")}>
+        + Crear publicación
       </button>
+    );
+  }
+
+  if (modo === "eleccion") {
+    return (
+      <div className="form-card">
+        <h3>¿Cómo quieres crear la publicación?</h3>
+        <div style={{ display: "flex", gap: "0.75rem", marginTop: "0.75rem" }}>
+          <button type="button" className="btn-primary" onClick={() => setModo("manual")}>
+            ✍️ Manual
+          </button>
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={() => router.push(`/generador?empresa=${empresaId}`)}
+          >
+            🤖 Generar con IA
+          </button>
+          <button type="button" className="btn-secondary" onClick={() => setModo("cerrado")}>
+            Cancelar
+          </button>
+        </div>
+      </div>
     );
   }
 
@@ -179,7 +202,7 @@ export function CrearManualForm({ empresaId }: { empresaId: string }) {
         <button type="button" className="btn-primary" disabled={guardando} onClick={crear}>
           {guardando ? "Creando…" : "Crear publicación"}
         </button>
-        <button type="button" className="btn-secondary" onClick={() => setAbierto(false)}>
+        <button type="button" className="btn-secondary" onClick={() => setModo("cerrado")}>
           Cancelar
         </button>
       </div>

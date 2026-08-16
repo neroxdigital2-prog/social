@@ -2,7 +2,7 @@ import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { GeneradorForm } from "@/components/generador/GeneradorForm";
 
-export default async function GeneradorPage() {
+export default async function GeneradorPage({ searchParams }: { searchParams: { empresa?: string } }) {
   const session = await auth();
   if (!session?.user) redirect("/login");
 
@@ -41,7 +41,7 @@ export default async function GeneradorPage() {
         {empresas.length === 0 ? (
           <p>Aún no tienes empresas registradas. <a href="/empresas/nueva">Crea tu primera empresa</a></p>
         ) : (
-          <GeneradorForm empresas={empresas} />
+          <GeneradorForm empresas={empresas} empresaIdInicial={searchParams.empresa} />
         )}
       </section>
     </main>
