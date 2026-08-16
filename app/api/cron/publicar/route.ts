@@ -58,6 +58,29 @@ async function publicarEnInstagram(igId: string, token: string, texto: string, i
     return { error: crearData?.error?.message || "Error creando el contenedor de Instagram" };
   }
 
+  // Instagram descarga y procesa la imagen de forma asíncrona; hay que esperar
+  // a que el contenedor esté FINISHED antes de publicarlo (si no, falla con
+  // "Media ID is not available"). Se comprueba cada 2s, hasta 30s en total.
+  let listo = false;
+  for (let intento = 0; intento < 15; intento++) {
+    const estadoRes = await fetch(
+      `https://graph.facebook.com/${GRAPH_VERSION}/${crearData.id}?fields=status_code&access_token=${token}`
+    );
+    const estadoData = await estadoRes.json();
+    if (estadoData.status_code === "FINISHED") {
+      listo = true;
+      break;
+    }
+    if (estadoData.status_code === "ERROR") {
+      return { error: "Instagram no pudo procesar la imagen (status ERROR al preparar el contenedor)." };
+    }
+    await new Promise((resolve) => setTimeout(resolve, 2000));
+  }
+
+  if (!listo) {
+    return { error: "La imagen tardó demasiado en procesarse en Instagram (timeout de 30s)." };
+  }
+
   const publicarRes = await fetch(`https://graph.facebook.com/${GRAPH_VERSION}/${igId}/media_publish`, {
     method: "POST",
     body: new URLSearchParams({ creation_id: crearData.id, access_token: token }),
