@@ -6,7 +6,10 @@ import { z } from "zod";
 
 export const maxDuration = 60;
 
-const BodySchema = z.object({ cantidad: z.number().min(1).max(10).default(10) });
+const BodySchema = z.object({
+  cantidad: z.number().min(1).max(10).default(10),
+  tema: z.string().max(300).optional(),
+});
 
 const BRIDGE_SECRET = process.env.BRIDGE_SECRET!;
 const BRIDGE_ACCESO = process.env.IONOS_BRIDGE_URL_EMPRESA_ACCESO!;
@@ -59,6 +62,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const body = await req.json().catch(() => ({}));
   const parsed = BodySchema.safeParse(body);
   const cantidad = parsed.success ? parsed.data.cantidad : 10;
+  const tema = parsed.success ? parsed.data.tema : undefined;
 
   const limiteMensual = LIMITES_PLAN[empresa.userPlan] ?? 5;
 
@@ -104,7 +108,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         whatsapp: empresa.whatsapp,
       },
       cantidad,
-      claves
+      claves,
+      tema
     );
 
     const crear = await bridgeFetch(BRIDGE_CREAR, { empresaId: empresa.id, publicaciones: generadas });

@@ -9,6 +9,7 @@ export function GeneradorForm({ empresas }: { empresas: EmpresaOpcion[] }) {
   const router = useRouter();
   const [empresaId, setEmpresaId] = useState(empresas[0]?.id ?? "");
   const [cantidad, setCantidad] = useState(10);
+  const [tema, setTema] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -20,7 +21,7 @@ export function GeneradorForm({ empresas }: { empresas: EmpresaOpcion[] }) {
     const res = await fetch(`/api/empresas/${empresaId}/generar`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ cantidad }),
+      body: JSON.stringify({ cantidad, tema: tema.trim() || undefined }),
     });
 
     setLoading(false);
@@ -42,6 +43,19 @@ export function GeneradorForm({ empresas }: { empresas: EmpresaOpcion[] }) {
         <select id="empresaId" value={empresaId} onChange={(e) => setEmpresaId(e.target.value)} required>
           {empresas.map((empresa) => <option key={empresa.id} value={empresa.id}>{empresa.nombre}</option>)}
         </select>
+      </div>
+      <div className="field">
+        <label htmlFor="tema">Tema o instrucciones (opcional)</label>
+        <textarea
+          id="tema"
+          rows={3}
+          value={tema}
+          onChange={(e) => setTema(e.target.value)}
+          placeholder="Ej: Enfócate en el nuevo servicio de automatización con IA para peluquerías"
+        />
+        <p className="text-muted" style={{ fontSize: "0.8rem", margin: 0 }}>
+          Si lo dejas vacío, la IA elige el tema automáticamente rotando entre los pilares de contenido habituales.
+        </p>
       </div>
       <div className="field">
         <label htmlFor="cantidad">Cantidad de publicaciones</label>

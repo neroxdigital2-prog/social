@@ -37,7 +37,7 @@ function elegirTipos(cantidad: number): TipoPublicacion[] {
   return tipos;
 }
 
-function construirPrompts(perfil: PerfilEmpresa, cantidad: number) {
+function construirPrompts(perfil: PerfilEmpresa, cantidad: number, tema?: string) {
   const tipos = elegirTipos(cantidad);
 
   const systemPrompt = `Eres un director de marketing digital experto en redes sociales para pequeñas y medianas empresas locales. Escribes en español, con tono cercano y profesional, adaptado al sector del negocio. Nunca inventas datos falsos sobre la empresa; usas solo la información proporcionada.`;
@@ -50,7 +50,7 @@ Ciudad: ${perfil.ciudad}
 Servicios: ${perfil.servicios.join(", ") || "no especificados"}
 Web: ${perfil.web || "no disponible"}
 WhatsApp: ${perfil.whatsapp || "no disponible"}
-
+${tema ? `\nTema o instrucción específica para estas publicaciones (síguela con prioridad, adaptando cada tipo de publicación a este tema): ${tema}\n` : ""}
 Tipos de publicación requeridos en este orden exacto: ${tipos.join(", ")}.
 
 Para cada publicación entrega:
@@ -193,9 +193,10 @@ async function generarConOpenRouter(systemPrompt: string, userPrompt: string, ap
 export async function generarPublicaciones(
   perfil: PerfilEmpresa,
   cantidad: number,
-  claves: ClavesApi = {}
+  claves: ClavesApi = {},
+  tema?: string
 ): Promise<PublicacionGenerada[]> {
-  const { systemPrompt, userPrompt } = construirPrompts(perfil, cantidad);
+  const { systemPrompt, userPrompt } = construirPrompts(perfil, cantidad, tema);
 
   const geminiKey = claves.gemini || process.env.GEMINI_API_KEY;
   const groqKey = claves.groq || process.env.GROQ_API_KEY;
