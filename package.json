@@ -13,31 +13,32 @@
     "test:watch": "vitest"
   },
   "dependencies": {
-    "next": "14.2.5",
-    "react": "18.3.1",
-    "react-dom": "18.3.1",
-    "next-auth": "5.0.0-beta.20",
     "@auth/prisma-adapter": "2.4.2",
     "@prisma/client": "5.17.0",
-    "bcryptjs": "2.4.3",
-    "zod": "3.23.8",
-    "openai": "4.55.4",
     "@supabase/supabase-js": "2.45.1",
-    "stripe": "16.6.0",
+    "bcryptjs": "2.4.3",
+    "image-size": "^2.0.2",
+    "next": "14.2.5",
+    "next-auth": "5.0.0-beta.20",
+    "openai": "4.55.4",
+    "pdfkit": "0.15.0",
+    "react": "18.3.1",
+    "react-dom": "18.3.1",
     "resend": "4.0.0",
-    "pdfkit": "0.15.0"
+    "stripe": "16.6.0",
+    "zod": "3.23.8"
   },
   "devDependencies": {
-    "typescript": "5.5.4",
+    "@types/bcryptjs": "2.4.6",
+    "@types/node": "20.14.13",
+    "@types/pdfkit": "0.13.4",
+    "@types/react": "18.3.3",
+    "@vitest/ui": "2.0.5",
+    "autoprefixer": "10.4.19",
+    "postcss": "8.4.40",
     "prisma": "5.17.0",
     "tailwindcss": "3.4.7",
-    "postcss": "8.4.40",
-    "autoprefixer": "10.4.19",
-    "@types/node": "20.14.13",
-    "@types/react": "18.3.3",
-    "@types/bcryptjs": "2.4.6",
-    "@types/pdfkit": "0.13.4",
-    "vitest": "2.0.5",
-    "@vitest/ui": "2.0.5"
+    "typescript": "5.5.4",
+    "vitest": "2.0.5"
   }
 }
