@@ -1,0 +1,270 @@
+"use client";
+
+import { useEffect, useState } from "react";
+
+interface Negocio {
+  id: string;
+  loteId: string;
+  sector: string;
+  ciudad: string;
+  nombreNegocio: string;
+  web: string;
+  rating: number;
+  reviews: number;
+  icp: number;
+  intent: number;
+  status: "HOT" | "WARM" | "COLD";
+  flags: string[];
+  diagnostico: string;
+  accion: string;
+  usadoEnPublicacion: number;
+  publicacionId: string | null;
+  creadoEn: string;
+}
+
+interface Resumen {
+  HOT: number;
+  WARM: number;
+  COLD: number;
+  usados: number;
+  total: number;
+}
+
+const COLOR_STATUS: Record<string, string> = {
+  HOT: "var(--color-error)",
+  WARM: "#d97706",
+  COLD: "var(--color-secondary)",
+};
+
+const FILTROS = [
+  { valor: "", etiqueta: "Todos" },
+  { valor: "HOT", etiqueta: "🔴 HOT" },
+  { valor: "WARM", etiqueta: "🟠 WARM" },
+  { valor: "COLD", etiqueta: "🔵 COLD" },
+];
+
+export function PanelNeroxAnaliza() {
+  const [negocios, setNegocios] = useState<Negocio[]>([]);
+  const [resumen, setResumen] = useState<Resumen | null>(null);
+  const [filtro, setFiltro] = useState("");
+  const [cargando, setCargando] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const [sector, setSector] = useState("dentista");
+  const [ciudad, setCiudad] = useState("Madrid");
+  const [escaneando, setEscaneando] = useState(false);
+  const [mensajeEscaneo, setMensajeEscaneo] = useState<string | null>(null);
+
+  async function cargar(status: string) {
+    setCargando(true);
+    setError(null);
+    try {
+      const url = status ? `/api/nerox-analiza/listar?status=${status}` : "/api/nerox-analiza/listar";
+      const res = await fetch(url);
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data?.error || "No se pudo cargar el listado.");
+        setCargando(false);
+        return;
+      }
+      setNegocios(data.negocios || []);
+      setResumen(data.resumen || null);
+    } catch {
+      setError("No se pudo conectar con el servidor.");
+    }
+    setCargando(false);
+  }
+
+  useEffect(() => {
+    cargar(filtro);
+  }, [filtro]);
+
+  async function escanearAhora() {
+    setEscaneando(true);
+    setMensajeEscaneo(null);
+    try {
+      const res = await fetch("/api/nerox-analiza/escanear", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sector, ciudad }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setMensajeEscaneo(`❌ ${data?.error || "Error al escanear."}`);
+      } else {
+        setMensajeEscaneo(`✅ Se analizaron ${data.total} negocios de "${sector}" en ${ciudad}.`);
+        cargar(filtro);
+      }
+    } catch {
+      setMensajeEscaneo("❌ No se pudo conectar con el servidor.");
+    }
+    setEscaneando(false);
+  }
+
+  return (
+    <div>
+      {/* Formulario de escaneo manual */}
+      <div
+        style={{
+          background: "var(--color-surface)",
+          borderRadius: "var(--radius-md)",
+          padding: "1.25rem",
+          marginBottom: "1.5rem",
+        }}
+      >
+        <h3 style={{ marginTop: 0 }}>Escanear un mercado ahora</h3>
+        <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", alignItems: "flex-end" }}>
+          <div>
+            <label style={{ display: "block", fontSize: "0.8rem", color: "var(--color-text-muted)", marginBottom: 4 }}>
+              Sector
+            </label>
+            <input
+              value={sector}
+              onChange={(e) => setSector(e.target.value)}
+              placeholder="dentista, restaurante..."
+              style={{
+                padding: "0.6rem 0.9rem",
+                borderRadius: "var(--radius-md)",
+                border: "1px solid #e5e5e7",
+                fontSize: "0.95rem",
+              }}
+            />
+          </div>
+          <div>
+            <label style={{ display: "block", fontSize: "0.8rem", color: "var(--color-text-muted)", marginBottom: 4 }}>
+              Ciudad
+            </label>
+            <input
+              value={ciudad}
+              onChange={(e) => setCiudad(e.target.value)}
+              placeholder="Madrid"
+              style={{
+                padding: "0.6rem 0.9rem",
+                borderRadius: "var(--radius-md)",
+                border: "1px solid #e5e5e7",
+                fontSize: "0.95rem",
+              }}
+            />
+          </div>
+          <button type="button" className="btn-primary" onClick={escanearAhora} disabled={escaneando}>
+            {escaneando ? "Escaneando… (10-20s)" : "🔎 Escanear mercado"}
+          </button>
+        </div>
+        {mensajeEscaneo && <p style={{ marginTop: "0.75rem", marginBottom: 0 }}>{mensajeEscaneo}</p>}
+      </div>
+
+      {/* Resumen */}
+      {resumen && (
+        <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", marginBottom: "1.5rem" }}>
+          {(["HOT", "WARM", "COLD"] as const).map((s) => (
+            <div
+              key={s}
+              style={{
+                flex: "1 1 120px",
+                background: "var(--color-background)",
+                border: "1px solid #e5e5e7",
+                borderRadius: "var(--radius-md)",
+                padding: "0.9rem 1.1rem",
+                boxShadow: "var(--shadow-card)",
+              }}
+            >
+              <div style={{ fontSize: "0.75rem", color: COLOR_STATUS[s], fontWeight: 700, letterSpacing: "0.03em" }}>
+                {s}
+              </div>
+              <div style={{ fontSize: "1.6rem", fontWeight: 700 }}>{resumen[s]}</div>
+            </div>
+          ))}
+          <div
+            style={{
+              flex: "1 1 160px",
+              background: "var(--color-background)",
+              border: "1px solid #e5e5e7",
+              borderRadius: "var(--radius-md)",
+              padding: "0.9rem 1.1rem",
+              boxShadow: "var(--shadow-card)",
+            }}
+          >
+            <div style={{ fontSize: "0.75rem", color: "var(--color-success)", fontWeight: 700, letterSpacing: "0.03em" }}>
+              YA CONVERTIDOS EN CONTENIDO
+            </div>
+            <div style={{ fontSize: "1.6rem", fontWeight: 700 }}>
+              {resumen.usados} <span style={{ fontSize: "1rem", color: "var(--color-text-muted)", fontWeight: 400 }}>/ {resumen.total}</span>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Filtros */}
+      <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1.25rem" }}>
+        {FILTROS.map((f) => (
+          <button
+            key={f.valor}
+            type="button"
+            className={filtro === f.valor ? "btn-primary" : "btn-secondary"}
+            onClick={() => setFiltro(f.valor)}
+          >
+            {f.etiqueta}
+          </button>
+        ))}
+      </div>
+
+      {/* Listado */}
+      {cargando && <p className="text-muted">Cargando…</p>}
+      {error && <p className="field-error">{error}</p>}
+
+      {!cargando && !error && negocios.length === 0 && (
+        <p className="text-muted">No hay negocios analizados todavía con este filtro. Prueba a escanear un mercado arriba.</p>
+      )}
+
+      <div className="cal-sin-programar-lista">
+        {negocios.map((n) => (
+          <div key={n.id} className="cal-sin-programar-item" style={{ alignItems: "flex-start", flexDirection: "column", gap: "0.5rem" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", width: "100%", alignItems: "center" }}>
+              <strong className="cal-item-titulo">{n.nombreNegocio}</strong>
+              <span
+                style={{
+                  fontSize: "0.7rem",
+                  fontWeight: 700,
+                  color: "white",
+                  background: COLOR_STATUS[n.status],
+                  padding: "2px 10px",
+                  borderRadius: "999px",
+                }}
+              >
+                {n.status} · ICP {n.icp}
+              </span>
+            </div>
+            <div className="cal-item-tipo">
+              {n.sector} · {n.ciudad} {n.web ? `· ${n.web}` : "· sin web detectada"}
+            </div>
+            <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap" }}>
+              {n.flags.map((f, i) => (
+                <span
+                  key={i}
+                  style={{
+                    fontSize: "0.7rem",
+                    background: "var(--color-surface)",
+                    color: "var(--color-text-muted)",
+                    padding: "2px 8px",
+                    borderRadius: "999px",
+                  }}
+                >
+                  {f}
+                </span>
+              ))}
+            </div>
+            <p style={{ margin: 0, fontSize: "0.9rem" }}>
+              <strong>Diagnóstico:</strong> {n.diagnostico}
+            </p>
+            <p style={{ margin: 0, fontSize: "0.9rem" }}>
+              <strong>Acción recomendada:</strong> {n.accion}
+            </p>
+            <div style={{ fontSize: "0.75rem", color: n.usadoEnPublicacion ? "var(--color-success)" : "var(--color-text-muted)" }}>
+              {n.usadoEnPublicacion ? "✅ Ya convertido en publicación" : "⏳ Pendiente de usar en contenido"}
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
