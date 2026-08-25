@@ -73,10 +73,11 @@ export async function GET(req: NextRequest) {
   // 4) Obtener las claves de IA guardadas para ese usuario (si hay)
   const configRes = await bridgeFetch(BRIDGE_CONFIG_LISTAR, { userId: NEROX_USER_ID, completo: true });
   const clavesGuardadas: { proveedor: string; apiKey: string }[] = Array.isArray(configRes.data) ? configRes.data : [];
+  // Para este cron usamos solo Groq/OpenRouter directamente: Gemini y Cerebras
+  // estan dando problemas conocidos (claves AQ., exigencia de tarjeta) y
+  // reintentar con ellos primero solo consume tiempo y puede provocar timeout.
   const claves = {
-    gemini: clavesGuardadas.find((c) => c.proveedor === "GEMINI")?.apiKey,
     groq: clavesGuardadas.find((c) => c.proveedor === "GROQ")?.apiKey,
-    cerebras: clavesGuardadas.find((c) => c.proveedor === "CEREBRAS")?.apiKey,
     openrouter: clavesGuardadas.find((c) => c.proveedor === "OPENROUTER")?.apiKey,
   };
 

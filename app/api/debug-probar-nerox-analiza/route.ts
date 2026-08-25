@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
+export const maxDuration = 60;
 
 // ENDPOINT TEMPORAL DE PRUEBA - BORRAR DESPUES DE USAR.
 // Dispara /api/cron/nerox-analiza usando el CRON_SECRET real del servidor,
