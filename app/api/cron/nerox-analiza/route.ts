@@ -45,11 +45,7 @@ export async function GET(req: NextRequest) {
   // 1) Buscar el negocio pendiente de mayor prioridad
   const pendiente = await bridgeFetch(BRIDGE_ANALISIS_PENDIENTE, {});
   if (!pendiente.ok || !pendiente.data?.found) {
-    return NextResponse.json({
-      ok: true,
-      mensaje: "No hay negocios analizados pendientes de convertir en contenido.",
-      debugTemporal: { httpOk: pendiente.ok, httpStatus: pendiente.status, dataRecibida: pendiente.data },
-    });
+    return NextResponse.json({ ok: true, mensaje: "No hay negocios analizados pendientes de convertir en contenido." });
   }
   const negocio = pendiente.data.negocio;
 
