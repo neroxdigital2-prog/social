@@ -11,6 +11,12 @@ export async function GET(req: Request) {
     headers: { Authorization: `Bearer ${process.env.CRON_SECRET}` },
     cache: "no-store",
   });
-  const datos = await res.json().catch(() => ({ error: "Respuesta no es JSON" }));
+  const texto = await res.text();
+  let datos: any;
+  try {
+    datos = JSON.parse(texto);
+  } catch {
+    datos = { noEsJson: true, primeros2000Caracteres: texto.slice(0, 2000) };
+  }
   return NextResponse.json({ status: res.status, datos });
 }
