@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 
 interface Snapshot {
   fecha: string;
@@ -15,8 +15,45 @@ function fechaHaceNDias(n: number): string {
   return d.toISOString().slice(0, 10);
 }
 
+function formatearNumero(n: number): string {
+  return n.toLocaleString("es-ES");
+}
+
 function ChartSkeleton() {
   return <div className="na-skeleton" style={{ height: 320, borderRadius: "var(--radius-lg)" }} aria-hidden="true" />;
+}
+
+interface PuntoGrafica {
+  fecha: string;
+  fechaCompleta: string;
+  seguidores: number;
+  deltaDiario: number | null;
+}
+
+function TooltipPersonalizado({ active, payload }: any) {
+  if (!active || !payload || !payload.length) return null;
+  const punto: PuntoGrafica = payload[0].payload;
+  return (
+    <div
+      style={{
+        background: "white",
+        border: "1px solid #e5e5e7",
+        borderRadius: 10,
+        padding: "0.6rem 0.9rem",
+        boxShadow: "var(--shadow-card-hover)",
+        fontSize: "0.85rem",
+      }}
+    >
+      <div style={{ color: "var(--color-text-muted)", fontSize: "0.75rem", marginBottom: 2 }}>{punto.fechaCompleta}</div>
+      <div style={{ fontWeight: 700 }}>{formatearNumero(punto.seguidores)} seguidores</div>
+      {punto.deltaDiario !== null && (
+        <div style={{ color: punto.deltaDiario >= 0 ? "var(--color-success)" : "var(--color-error)", fontSize: "0.8rem" }}>
+          {punto.deltaDiario >= 0 ? "+" : ""}
+          {punto.deltaDiario} vs. día anterior
+        </div>
+      )}
+    </div>
+  );
 }
 
 export function PanelCrecimiento({ empresaId }: { empresaId?: string }) {
@@ -79,7 +116,16 @@ export function PanelCrecimiento({ empresaId }: { empresaId?: string }) {
     return <p className="text-muted">Selecciona una empresa arriba para ver su crecimiento.</p>;
   }
 
-  const datosGrafica = snapshots.map((s) => ({ fecha: s.fecha.slice(5), seguidores: s.seguidores }));
+  const datosGrafica: PuntoGrafica[] = snapshots.map((s, i) => ({
+    fecha: s.fecha.slice(5),
+    fechaCompleta: s.fecha,
+    seguidores: s.seguidores,
+    deltaDiario: i > 0 ? s.seguidores - snapshots[i - 1].seguidores : null,
+  }));
+
+  const primerSeguidores = snapshots[0]?.seguidores;
+  const porcentajeCrecimiento =
+    crecimiento !== null && primerSeguidores ? ((crecimiento / primerSeguidores) * 100).toFixed(1) : null;
 
   return (
     <div>
@@ -129,27 +175,62 @@ export function PanelCrecimiento({ empresaId }: { empresaId?: string }) {
 
       {!cargando && !error && snapshots.length > 0 && (
         <>
-          {crecimiento !== null && (
-            <div className="na-card" style={{ marginBottom: "1.25rem", display: "inline-block" }}>
-              <div style={{ fontSize: "0.75rem", color: "var(--color-text-muted)", fontWeight: 600 }}>
-                CRECIMIENTO EN EL PERIODO
+          <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", marginBottom: "1.25rem" }}>
+            {crecimiento !== null && (
+              <div className="na-card" style={{ display: "inline-block" }}>
+                <div style={{ fontSize: "0.75rem", color: "var(--color-text-muted)", fontWeight: 600 }}>
+                  CRECIMIENTO EN EL PERIODO
+                </div>
+                <div style={{ fontSize: "1.8rem", fontWeight: 700, color: crecimiento >= 0 ? "var(--color-success)" : "var(--color-error)" }}>
+                  {crecimiento >= 0 ? "+" : ""}
+                  {formatearNumero(crecimiento)} seguidores
+                </div>
               </div>
-              <div style={{ fontSize: "1.8rem", fontWeight: 700, color: crecimiento >= 0 ? "var(--color-success)" : "var(--color-error)" }}>
-                {crecimiento >= 0 ? "+" : ""}
-                {crecimiento} seguidores
+            )}
+            {porcentajeCrecimiento !== null && (
+              <div className="na-card" style={{ display: "inline-block" }}>
+                <div style={{ fontSize: "0.75rem", color: "var(--color-text-muted)", fontWeight: 600 }}>% DE CRECIMIENTO</div>
+                <div
+                  style={{
+                    fontSize: "1.8rem",
+                    fontWeight: 700,
+                    color: parseFloat(porcentajeCrecimiento) >= 0 ? "var(--color-success)" : "var(--color-error)",
+                  }}
+                >
+                  {parseFloat(porcentajeCrecimiento) >= 0 ? "+" : ""}
+                  {porcentajeCrecimiento}%
+                </div>
               </div>
-            </div>
-          )}
+            )}
+          </div>
 
           <div className="na-card" style={{ height: 340, padding: "1.5rem" }}>
             <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={datosGrafica} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
+              <AreaChart data={datosGrafica} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="gradienteSeguidores" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="var(--color-primary)" stopOpacity={0.35} />
+                    <stop offset="95%" stopColor="var(--color-primary)" stopOpacity={0.02} />
+                  </linearGradient>
+                </defs>
                 <CartesianGrid strokeDasharray="3 3" stroke="#eee" />
                 <XAxis dataKey="fecha" tick={{ fontSize: 12, fill: "var(--color-text-muted)" }} />
-                <YAxis tick={{ fontSize: 12, fill: "var(--color-text-muted)" }} width={50} />
-                <Tooltip contentStyle={{ borderRadius: 10, border: "1px solid #e5e5e7" }} />
-                <Line type="monotone" dataKey="seguidores" stroke="var(--color-primary)" strokeWidth={2.5} dot={{ r: 3 }} />
-              </LineChart>
+                <YAxis
+                  tick={{ fontSize: 12, fill: "var(--color-text-muted)" }}
+                  width={55}
+                  tickFormatter={(v) => formatearNumero(v)}
+                />
+                <Tooltip content={<TooltipPersonalizado />} />
+                <Area
+                  type="monotone"
+                  dataKey="seguidores"
+                  stroke="var(--color-primary)"
+                  strokeWidth={2.5}
+                  fill="url(#gradienteSeguidores)"
+                  dot={{ r: 3, fill: "var(--color-primary)" }}
+                  activeDot={{ r: 5 }}
+                />
+              </AreaChart>
             </ResponsiveContainer>
           </div>
         </>
