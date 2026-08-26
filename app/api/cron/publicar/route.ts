@@ -70,6 +70,7 @@ async function enviarAlertaWhatsApp(mensaje: string) {
 interface RedConectadaResumen {
   red: "FACEBOOK" | "INSTAGRAM" | "LINKEDIN" | "TIKTOK" | "GOOGLE" | "TWITTER";
   accessToken: string;
+  refreshToken?: string | null;
   cuentaExterna: string;
 }
 
@@ -154,6 +155,65 @@ async function publicarEnInstagram(igId: string, token: string, texto: string, i
     return { error: publicarData?.error?.message || "Error publicando el contenedor en Instagram" };
   }
   return { postIdExterno: publicarData.id };
+}
+
+const GOOGLE_CLIENT_ID = process.env.GOOGLE_GBP_CLIENT_ID!;
+const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_GBP_CLIENT_SECRET!;
+
+/**
+ * El accessToken de Google caduca en 1 hora. Como este cron corre cada 15
+ * minutos pero una publicacion puede quedar programada para dentro de
+ * varias horas, siempre renovamos el token con el refreshToken justo antes
+ * de publicar, en vez de asumir que el guardado sigue siendo valido.
+ */
+async function renovarTokenGoogle(refreshToken: string): Promise<string | null> {
+  try {
+    const res = await fetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        refresh_token: refreshToken,
+        client_id: GOOGLE_CLIENT_ID,
+        client_secret: GOOGLE_CLIENT_SECRET,
+        grant_type: "refresh_token",
+      }),
+    });
+    const data = await res.json();
+    return data.access_token || null;
+  } catch {
+    return null;
+  }
+}
+
+async function publicarEnGoogleBusiness(recursoCompleto: string, refreshToken: string | null | undefined, texto: string, imagenUrl: string | null) {
+  if (!refreshToken) {
+    return { error: "Falta el refresh_token de Google. Reconecta la cuenta desde Configuración." };
+  }
+
+  const accessToken = await renovarTokenGoogle(refreshToken);
+  if (!accessToken) {
+    return { error: "No se pudo renovar el token de acceso de Google." };
+  }
+
+  const body: any = {
+    languageCode: "es",
+    summary: texto.slice(0, 1500), // limite de Google para el resumen del post
+    topicType: "STANDARD",
+  };
+  if (imagenUrl) {
+    body.media = [{ mediaFormat: "PHOTO", sourceUrl: imagenUrl }];
+  }
+
+  const res = await fetch(`https://mybusiness.googleapis.com/v4/${recursoCompleto}/localPosts`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${accessToken}` },
+    body: JSON.stringify(body),
+  });
+  const data = await res.json();
+  if (!res.ok || data.error) {
+    return { error: data?.error?.message || "Error publicando en Google Business" };
+  }
+  return { postIdExterno: data.name };
 }
 
 // --- Firma OAuth 1.0a para la API de X (Twitter) ---
@@ -283,8 +343,10 @@ export async function GET(req: NextRequest) {
         resultado = await publicarEnInstagram(red.cuentaExterna, red.accessToken, textoCompleto, pub.imagenUrl, pub.altText);
       } else if (red.red === "TWITTER") {
         resultado = await publicarEnX(red.accessToken, textoCompleto);
+      } else if (red.red === "GOOGLE") {
+        resultado = await publicarEnGoogleBusiness(red.cuentaExterna, red.refreshToken, textoCompleto, pub.imagenUrl);
       } else {
-        continue; // LinkedIn/TikTok/Google: no implementado todavía
+        continue; // LinkedIn/TikTok: no implementado todavía
       }
       resultadosPorRed.push({ red: red.red, ...resultado });
     }
