@@ -14,6 +14,7 @@ export interface PublicacionGenerada {
   tipo: TipoPublicacion;
   titulo: string;
   texto: string;
+  altText: string;
   hashtags: string[];
   imagenPrompt: string;
 }
@@ -40,7 +41,14 @@ function elegirTipos(cantidad: number): TipoPublicacion[] {
 function construirPrompts(perfil: PerfilEmpresa, cantidad: number, tema?: string) {
   const tipos = elegirTipos(cantidad);
 
-  const systemPrompt = `Eres un director de marketing digital experto en redes sociales para pequeñas y medianas empresas locales. Escribes en español, con tono cercano y profesional, adaptado al sector del negocio. Nunca inventas datos falsos sobre la empresa; usas solo la información proporcionada.`;
+  const systemPrompt = `Eres un director de marketing digital experto en redes sociales para pequeñas y medianas empresas locales, con dominio de SEO para Instagram/Meta. Escribes en español, con tono cercano y profesional, adaptado al sector del negocio. Nunca inventas datos falsos sobre la empresa; usas solo la información proporcionada.
+
+REGLAS SEO OBLIGATORIAS para cada publicación:
+1. La keyword principal (sector o servicio del negocio) debe aparecer dentro de los primeros 125 caracteres del "texto" — Instagram solo indexa y muestra esa parte antes de "ver más".
+2. La primera línea del "texto" debe ser un gancho corto que incluya esa keyword de forma natural, no un emoji suelto.
+3. "altText" debe describir la imagen de forma literal (qué se ve) e incluir la keyword principal de forma natural — se usa para accesibilidad y para que Instagram indexe la imagen. Máximo 100 caracteres.
+4. "hashtags" deben ser 3-5 hashtags de nicho (long-tail, específicos del sector+ciudad, ej. #disenowebmadrid en vez de #disenoweb) más 1 hashtag de marca fijo: #${(perfil.nombre || "nerox").toLowerCase().replace(/[^a-z0-9]/g, "")}. Nunca hashtags genéricos masivos (#instagood, #viral, #love).
+5. Si la empresa tiene ciudad definida, menciona esa ciudad de forma natural dentro del "texto" (ej. "en ${perfil.ciudad}", "para negocios en ${perfil.ciudad}") para reforzar el SEO local.`;
 
   const userPrompt = `Genera ${cantidad} publicaciones para redes sociales de esta empresa:
 
@@ -53,14 +61,15 @@ WhatsApp: ${perfil.whatsapp || "no disponible"}
 ${tema ? `\nTema o instrucción específica para estas publicaciones (síguela con prioridad, adaptando cada tipo de publicación a este tema): ${tema}\n` : ""}
 Tipos de publicación requeridos en este orden exacto: ${tipos.join(", ")}.
 
-Para cada publicación entrega:
+Para cada publicación entrega, aplicando siempre las REGLAS SEO del system prompt:
 - titulo: máximo 8 palabras
-- texto: entre 40 y 90 palabras, listo para publicar
-- hashtags: 5 hashtags relevantes en español, sin espacios
+- texto: entre 40 y 90 palabras, listo para publicar, keyword en los primeros 125 caracteres
+- altText: descripción literal de la imagen con la keyword, máximo 100 caracteres
+- hashtags: 3-5 hashtags de nicho long-tail + 1 hashtag de marca, sin espacios
 - imagenPrompt: descripción en inglés para generar una imagen con IA que acompañe la publicación
 
 Responde ÚNICAMENTE con un JSON válido con esta forma exacta:
-{"publicaciones": [{"tipo": "TIPO", "titulo": "...", "texto": "...", "hashtags": ["...","..."], "imagenPrompt": "..."}]}`;
+{"publicaciones": [{"tipo": "TIPO", "titulo": "...", "texto": "...", "altText": "...", "hashtags": ["...","..."], "imagenPrompt": "..."}]}`;
 
   return { systemPrompt, userPrompt };
 }

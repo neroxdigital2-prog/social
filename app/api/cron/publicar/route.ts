@@ -20,6 +20,7 @@ interface PublicacionProgramada {
   texto: string;
   hashtags: string[];
   imagenUrl: string | null;
+  altText?: string | null;
   redesConectadas: RedConectadaResumen[];
 }
 
@@ -44,14 +45,19 @@ async function publicarEnFacebook(pageId: string, token: string, texto: string, 
   return { postIdExterno: data.post_id || data.id };
 }
 
-async function publicarEnInstagram(igId: string, token: string, texto: string, imagenUrl: string | null) {
+async function publicarEnInstagram(igId: string, token: string, texto: string, imagenUrl: string | null, altText?: string | null) {
   if (!imagenUrl) {
     return { error: "Instagram requiere una imagen; esta publicación no tenía ninguna generada." };
   }
 
+  const paramsCrear = new URLSearchParams({ image_url: imagenUrl, caption: texto, access_token: token });
+  // alt_text es un parametro oficial soportado por Meta desde marzo 2025 para
+  // posts de imagen (no Reels/Stories). Mejora accesibilidad y SEO/indexacion.
+  if (altText) paramsCrear.set("alt_text", altText.slice(0, 100));
+
   const crearRes = await fetch(`https://graph.facebook.com/${GRAPH_VERSION}/${igId}/media`, {
     method: "POST",
-    body: new URLSearchParams({ image_url: imagenUrl, caption: texto, access_token: token }),
+    body: paramsCrear,
   });
   const crearData = await crearRes.json();
   if (!crearRes.ok || crearData.error || !crearData.id) {
@@ -198,7 +204,7 @@ export async function GET(req: NextRequest) {
       if (red.red === "FACEBOOK") {
         resultado = await publicarEnFacebook(red.cuentaExterna, red.accessToken, textoCompleto, pub.imagenUrl);
       } else if (red.red === "INSTAGRAM") {
-        resultado = await publicarEnInstagram(red.cuentaExterna, red.accessToken, textoCompleto, pub.imagenUrl);
+        resultado = await publicarEnInstagram(red.cuentaExterna, red.accessToken, textoCompleto, pub.imagenUrl, pub.altText);
       } else if (red.red === "TWITTER") {
         resultado = await publicarEnX(red.accessToken, textoCompleto);
       } else {
