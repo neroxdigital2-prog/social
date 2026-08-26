@@ -52,6 +52,7 @@ export function RedesConectadas({ empresaId }: { empresaId: string }) {
 
   const tieneFacebook = redes.some((r) => r.red === "FACEBOOK");
   const tieneInstagram = redes.some((r) => r.red === "INSTAGRAM");
+  const tieneGoogle = redes.some((r) => r.red === "GOOGLE");
 
   return (
     <div>
@@ -93,6 +94,22 @@ export function RedesConectadas({ empresaId }: { empresaId: string }) {
               Se conectan juntas desde tu página de Facebook (si tiene una cuenta de Instagram Business vinculada).
             </p>
           )}
+
+          <div style={{ marginTop: "1.25rem" }}>
+            {!tieneGoogle ? (
+              <a
+                href={`/api/redes/google/conectar?empresa=${empresaId}`}
+                className="btn-primary"
+                style={{ display: "inline-block", textDecoration: "none" }}
+              >
+                Conectar Google Business
+              </a>
+            ) : (
+              <p className="text-muted" style={{ fontSize: "0.8rem" }}>
+                Google Business conectado. Publica actualizaciones directamente en tu ficha de Google.
+              </p>
+            )}
+          </div>
         </>
       )}
     </div>
