@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 const ENLACES = [
   { href: "/generador", label: "Generador" },
   { href: "/nerox-analiza", label: "🔎 Nerox Analiza" },
+  { href: "/crecimiento", label: "📈 Crecimiento" },
   { href: "/calendario", label: "Calendario" },
   { href: "/biblioteca", label: "Biblioteca" },
   { href: "/crm", label: "CRM" },
