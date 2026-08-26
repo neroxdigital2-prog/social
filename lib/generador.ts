@@ -26,6 +26,24 @@ export interface ClavesApi {
   openrouter?: string;
 }
 
+// Mapeo de cada tipo de publicacion a su PILAR del embudo de contenido
+// (ATRAER -> EDUCAR -> DEMOSTRAR -> CONFIANZA -> CONVERTIR). Cada pilar tiene
+// un enfoque de KPI y de SEO distinto, para que el prompt lo aplique.
+const PILAR_POR_TIPO: Record<string, { pilar: string; enfoqueSeo: string }> = {
+  INFORMATIVA:         { pilar: "ATRAER",    enfoqueSeo: "gancho fuerte en el primer segundo, keyword de problema/dolor del cliente, hashtags de alcance amplio dentro del nicho" },
+  CONSEJO:             { pilar: "EDUCAR",    enfoqueSeo: "keyword de 'como hacer X', formato lista/pasos que invite a guardar" },
+  CASO_EXITO:          { pilar: "CONFIANZA", enfoqueSeo: "keyword de resultado medible (numeros, porcentajes), hashtags de prueba social" },
+  ANTES_DESPUES:       { pilar: "CONFIANZA", enfoqueSeo: "keyword de transformacion, contraste antes/despues explicito en el texto" },
+  PROMOCION:           { pilar: "CONVERTIR", enfoqueSeo: "keyword de servicio + ciudad, CTA directo y urgente" },
+  PREGUNTA_FRECUENTE:  { pilar: "EDUCAR",    enfoqueSeo: "keyword en formato pregunta literal (asi la gente busca), responde en el propio texto" },
+  NOTICIA_SECTOR:      { pilar: "ATRAER",    enfoqueSeo: "keyword de tendencia/actualidad del sector, hashtags de novedad" },
+  CURIOSIDAD:          { pilar: "ATRAER",    enfoqueSeo: "keyword de dato sorprendente, maximiza guardados y compartidos" },
+  MITO_REALIDAD:       { pilar: "EDUCAR",    enfoqueSeo: "keyword del mito mas comun del sector, formato mito vs realidad" },
+  TESTIMONIO:          { pilar: "CONFIANZA", enfoqueSeo: "keyword de experiencia de cliente real, tono cercano" },
+  ENCUESTA:            { pilar: "DEMOSTRAR", enfoqueSeo: "keyword de decision/comparacion, fomenta comentarios" },
+  LLAMADA_ACCION:      { pilar: "CONVERTIR", enfoqueSeo: "keyword de servicio + ciudad, CTA muy directo (escribe/llama/agenda ya)" },
+};
+
 const TIPOS_ROTACION: TipoPublicacion[] = [
   "INFORMATIVA", "CONSEJO", "CASO_EXITO", "ANTES_DESPUES", "PROMOCION",
   "PREGUNTA_FRECUENTE", "NOTICIA_SECTOR", "CURIOSIDAD", "MITO_REALIDAD",
@@ -59,9 +77,10 @@ Servicios: ${perfil.servicios.join(", ") || "no especificados"}
 Web: ${perfil.web || "no disponible"}
 WhatsApp: ${perfil.whatsapp || "no disponible"}
 ${tema ? `\nTema o instrucción específica para estas publicaciones (síguela con prioridad, adaptando cada tipo de publicación a este tema): ${tema}\n` : ""}
-Tipos de publicación requeridos en este orden exacto: ${tipos.join(", ")}.
+Tipos de publicación requeridos en este orden exacto, con su pilar de embudo (ATRAER→EDUCAR→DEMOSTRAR→CONFIANZA→CONVERTIR) y el enfoque SEO que debes aplicar a cada uno:
+${tipos.map((t) => `- ${t} [pilar: ${PILAR_POR_TIPO[t]?.pilar ?? "ATRAER"}] → enfoque SEO: ${PILAR_POR_TIPO[t]?.enfoqueSeo ?? "keyword del sector en el gancho inicial"}`).join("\n")}
 
-Para cada publicación entrega, aplicando siempre las REGLAS SEO del system prompt:
+Para cada publicación entrega, aplicando siempre las REGLAS SEO del system prompt Y el enfoque SEO específico de su pilar:
 - titulo: máximo 8 palabras
 - texto: entre 40 y 90 palabras, listo para publicar, keyword en los primeros 125 caracteres
 - altText: descripción literal de la imagen con la keyword, máximo 100 caracteres
