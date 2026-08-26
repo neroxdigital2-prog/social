@@ -9,6 +9,7 @@ interface Negocio {
   ciudad: string;
   nombreNegocio: string;
   web: string;
+  telefono: string | null;
   rating: number;
   reviews: number;
   icp: number;
@@ -17,6 +18,8 @@ interface Negocio {
   flags: string[];
   diagnostico: string;
   accion: string;
+  propuestaVenta: string | null;
+  leadId: string | null;
   usadoEnPublicacion: number;
   publicacionId: string | null;
   creadoEn: string;
@@ -56,11 +59,22 @@ export function PanelNeroxAnaliza() {
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [panelAbierto, setPanelAbierto] = useState(true);
+  const [copiadoId, setCopiadoId] = useState<string | null>(null);
 
   const [sector, setSector] = useState("dentista");
   const [ciudad, setCiudad] = useState("Madrid");
   const [escaneando, setEscaneando] = useState(false);
   const [mensajeEscaneo, setMensajeEscaneo] = useState<string | null>(null);
+
+  async function copiarPropuesta(id: string, texto: string) {
+    try {
+      await navigator.clipboard.writeText(texto);
+      setCopiadoId(id);
+      setTimeout(() => setCopiadoId(null), 2000);
+    } catch {
+      // si el navegador bloquea el portapapeles, no rompemos nada, solo no se copia
+    }
+  }
 
   async function cargar(status: string) {
     setCargando(true);
@@ -247,6 +261,53 @@ export function PanelNeroxAnaliza() {
               <p style={{ margin: "0.25rem 0 0.5rem", fontSize: "0.9rem" }}>
                 <strong>Acción recomendada:</strong> {n.accion}
               </p>
+
+              {n.propuestaVenta && (
+                <div
+                  style={{
+                    background: "var(--color-surface)",
+                    borderRadius: "var(--radius-md)",
+                    padding: "0.75rem 0.9rem",
+                    margin: "0.5rem 0",
+                  }}
+                >
+                  <div style={{ fontSize: "0.7rem", fontWeight: 700, color: "var(--color-text-muted)", marginBottom: 4 }}>
+                    💬 PROPUESTA DE PRIMER CONTACTO
+                  </div>
+                  <p style={{ margin: 0, fontSize: "0.85rem", lineHeight: 1.4 }}>{n.propuestaVenta}</p>
+                  <div style={{ display: "flex", gap: "0.5rem", marginTop: "0.5rem", flexWrap: "wrap" }}>
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      style={{ fontSize: "0.75rem", padding: "4px 10px" }}
+                      onClick={() => copiarPropuesta(n.id, n.propuestaVenta!)}
+                    >
+                      {copiadoId === n.id ? "✅ Copiado" : "📋 Copiar mensaje"}
+                    </button>
+                    {n.leadId && (
+                      <a
+                        href={`/crm?empresa=cfdf21c6f22303f501abe580e&lead=${n.leadId}`}
+                        className="btn-secondary"
+                        style={{ fontSize: "0.75rem", padding: "4px 10px", textDecoration: "none", display: "inline-block" }}
+                      >
+                        👤 Ver lead en CRM
+                      </a>
+                    )}
+                    {n.telefono && (
+                      <a
+                        href={`https://wa.me/${n.telefono.replace(/[^0-9]/g, "")}?text=${encodeURIComponent(n.propuestaVenta)}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="btn-primary"
+                        style={{ fontSize: "0.75rem", padding: "4px 10px", textDecoration: "none", display: "inline-block" }}
+                      >
+                        📲 Enviar por WhatsApp
+                      </a>
+                    )}
+                  </div>
+                </div>
+              )}
+
               <div style={{ fontSize: "0.75rem", color: n.usadoEnPublicacion ? "var(--color-success)" : "var(--color-text-muted)" }}>
                 {n.usadoEnPublicacion ? "✅ Ya convertido en publicación" : "⏳ Pendiente de usar en contenido"}
               </div>
