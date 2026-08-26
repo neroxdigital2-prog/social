@@ -68,16 +68,16 @@ export function PanelNeroxAnaliza() {
     try {
       const url = status ? `/api/nerox-analiza/listar?status=${status}` : "/api/nerox-analiza/listar";
       const res = await fetch(url);
-      const data = await res.json();
-      if (!res.ok) {
-        setError(data?.error || "No se pudo cargar el listado.");
+      const data = await res.json().catch(() => null);
+      if (!res.ok || !data) {
+        setError(data?.error || `Error HTTP ${res.status} al cargar el listado.`);
         setCargando(false);
         return;
       }
       setNegocios(data.negocios || []);
       setResumen(data.resumen || null);
-    } catch {
-      setError("No se pudo conectar con el servidor.");
+    } catch (e: any) {
+      setError("No se pudo conectar con el servidor: " + (e?.message || "error desconocido"));
     }
     setCargando(false);
   }
