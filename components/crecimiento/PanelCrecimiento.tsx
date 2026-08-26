@@ -83,17 +83,14 @@ export function PanelCrecimiento({ empresaId }: { empresaId?: string }) {
 
   return (
     <div>
-      {/* Selector de fechas + exportar PDF */}
+      {/* Selector de fechas + exportar PDF - barra flotante */}
       <div
+        className="na-barra-flotante"
         style={{
           display: "flex",
           gap: "0.75rem",
           flexWrap: "wrap",
           alignItems: "flex-end",
-          background: "var(--color-surface)",
-          borderRadius: "var(--radius-md)",
-          padding: "1.1rem 1.25rem",
-          marginBottom: "1.5rem",
         }}
       >
         <div>

@@ -1168,3 +1168,25 @@ select option {
     transition: none !important;
   }
 }
+
+/* ============================================================
+   Barra flotante (menu que "flota" pegado arriba al hacer scroll,
+   con efecto vidrio esmerilado, igual que la barra de navegacion).
+   Uso: filtros de Nerox Analiza, selector de fechas de Crecimiento.
+   ============================================================ */
+.na-barra-flotante {
+  position: sticky;
+  top: 0.75rem;
+  z-index: 20;
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: saturate(180%) blur(16px);
+  -webkit-backdrop-filter: saturate(180%) blur(16px);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-card);
+  padding: 0.85rem 1rem;
+  margin-bottom: 1.5rem;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .na-barra-flotante { backdrop-filter: none; -webkit-backdrop-filter: none; background: #ffffff; }
+}
