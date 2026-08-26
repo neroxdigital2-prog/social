@@ -231,5 +231,8 @@ export async function generarPublicaciones(
   }
 
   const parsed = JSON.parse(contenido) as { publicaciones: PublicacionGenerada[] };
-  return parsed.publicaciones;
+  // Algunos modelos no respetan estrictamente la cantidad pedida en el prompt
+  // (sobre todo si tema/instrucciones son largos). Recortamos aqui para
+  // garantizar que nunca se devuelvan mas publicaciones de las solicitadas.
+  return (parsed.publicaciones || []).slice(0, cantidad);
 }
