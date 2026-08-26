@@ -43,12 +43,19 @@ const FILTROS = [
   { valor: "COLD", etiqueta: "🔵 COLD" },
 ];
 
+function TarjetaSkeleton() {
+  return (
+    <div className="na-skeleton na-skeleton-card" aria-hidden="true" />
+  );
+}
+
 export function PanelNeroxAnaliza() {
   const [negocios, setNegocios] = useState<Negocio[]>([]);
   const [resumen, setResumen] = useState<Resumen | null>(null);
   const [filtro, setFiltro] = useState("");
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [panelAbierto, setPanelAbierto] = useState(true);
 
   const [sector, setSector] = useState("dentista");
   const [ciudad, setCiudad] = useState("Madrid");
@@ -77,6 +84,7 @@ export function PanelNeroxAnaliza() {
 
   useEffect(() => {
     cargar(filtro);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filtro]);
 
   async function escanearAhora() {
@@ -103,104 +111,76 @@ export function PanelNeroxAnaliza() {
 
   return (
     <div>
-      {/* Formulario de escaneo manual */}
-      <div
-        style={{
-          background: "var(--color-surface)",
-          borderRadius: "var(--radius-md)",
-          padding: "1.25rem",
-          marginBottom: "1.5rem",
-        }}
-      >
-        <h3 style={{ marginTop: 0 }}>Escanear un mercado ahora</h3>
-        <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", alignItems: "flex-end" }}>
+      {/* Panel colapsable: escaneo manual */}
+      <div className="na-panel-colapsable">
+        <button
+          type="button"
+          className="na-panel-cabecera"
+          onClick={() => setPanelAbierto((v) => !v)}
+          aria-expanded={panelAbierto}
+        >
+          <span>🔎 Escanear un mercado ahora</span>
+          <span className={`na-panel-flecha ${panelAbierto ? "abierto" : ""}`}>▼</span>
+        </button>
+        <div className={`na-panel-cuerpo ${panelAbierto ? "abierto" : "cerrado"}`}>
           <div>
-            <label style={{ display: "block", fontSize: "0.8rem", color: "var(--color-text-muted)", marginBottom: 4 }}>
-              Sector
-            </label>
-            <input
-              value={sector}
-              onChange={(e) => setSector(e.target.value)}
-              placeholder="dentista, restaurante..."
-              style={{
-                padding: "0.6rem 0.9rem",
-                borderRadius: "var(--radius-md)",
-                border: "1px solid #e5e5e7",
-                fontSize: "0.95rem",
-              }}
-            />
+            <div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", alignItems: "flex-end", paddingTop: "0.25rem" }}>
+              <div>
+                <label style={{ display: "block", fontSize: "0.8rem", color: "var(--color-text-muted)", marginBottom: 4 }}>
+                  Sector
+                </label>
+                <input
+                  className="na-input"
+                  value={sector}
+                  onChange={(e) => setSector(e.target.value)}
+                  placeholder="dentista, restaurante..."
+                />
+              </div>
+              <div>
+                <label style={{ display: "block", fontSize: "0.8rem", color: "var(--color-text-muted)", marginBottom: 4 }}>
+                  Ciudad
+                </label>
+                <input className="na-input" value={ciudad} onChange={(e) => setCiudad(e.target.value)} placeholder="Madrid" />
+              </div>
+              <button type="button" className="btn-primary" onClick={escanearAhora} disabled={escaneando}>
+                {escaneando ? "Escaneando… (10-20s)" : "🔎 Escanear mercado"}
+              </button>
+            </div>
+            {mensajeEscaneo && <p style={{ marginTop: "0.75rem", marginBottom: 0 }}>{mensajeEscaneo}</p>}
           </div>
-          <div>
-            <label style={{ display: "block", fontSize: "0.8rem", color: "var(--color-text-muted)", marginBottom: 4 }}>
-              Ciudad
-            </label>
-            <input
-              value={ciudad}
-              onChange={(e) => setCiudad(e.target.value)}
-              placeholder="Madrid"
-              style={{
-                padding: "0.6rem 0.9rem",
-                borderRadius: "var(--radius-md)",
-                border: "1px solid #e5e5e7",
-                fontSize: "0.95rem",
-              }}
-            />
-          </div>
-          <button type="button" className="btn-primary" onClick={escanearAhora} disabled={escaneando}>
-            {escaneando ? "Escaneando… (10-20s)" : "🔎 Escanear mercado"}
-          </button>
         </div>
-        {mensajeEscaneo && <p style={{ marginTop: "0.75rem", marginBottom: 0 }}>{mensajeEscaneo}</p>}
       </div>
 
       {/* Resumen */}
       {resumen && (
         <div style={{ display: "flex", gap: "1rem", flexWrap: "wrap", marginBottom: "1.5rem" }}>
           {(["HOT", "WARM", "COLD"] as const).map((s) => (
-            <div
-              key={s}
-              style={{
-                flex: "1 1 120px",
-                background: "var(--color-background)",
-                border: "1px solid #e5e5e7",
-                borderRadius: "var(--radius-md)",
-                padding: "0.9rem 1.1rem",
-                boxShadow: "var(--shadow-card)",
-              }}
-            >
+            <div key={s} className="na-card" style={{ flex: "1 1 120px" }}>
               <div style={{ fontSize: "0.75rem", color: COLOR_STATUS[s], fontWeight: 700, letterSpacing: "0.03em" }}>
                 {s}
               </div>
               <div style={{ fontSize: "1.6rem", fontWeight: 700 }}>{resumen[s]}</div>
             </div>
           ))}
-          <div
-            style={{
-              flex: "1 1 160px",
-              background: "var(--color-background)",
-              border: "1px solid #e5e5e7",
-              borderRadius: "var(--radius-md)",
-              padding: "0.9rem 1.1rem",
-              boxShadow: "var(--shadow-card)",
-            }}
-          >
+          <div className="na-card" style={{ flex: "1 1 160px" }}>
             <div style={{ fontSize: "0.75rem", color: "var(--color-success)", fontWeight: 700, letterSpacing: "0.03em" }}>
               YA CONVERTIDOS EN CONTENIDO
             </div>
             <div style={{ fontSize: "1.6rem", fontWeight: 700 }}>
-              {resumen.usados} <span style={{ fontSize: "1rem", color: "var(--color-text-muted)", fontWeight: 400 }}>/ {resumen.total}</span>
+              {resumen.usados}{" "}
+              <span style={{ fontSize: "1rem", color: "var(--color-text-muted)", fontWeight: 400 }}>/ {resumen.total}</span>
             </div>
           </div>
         </div>
       )}
 
       {/* Filtros */}
-      <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1.25rem" }}>
+      <div style={{ display: "flex", gap: "0.5rem", marginBottom: "1.25rem", flexWrap: "wrap" }}>
         {FILTROS.map((f) => (
           <button
             key={f.valor}
             type="button"
-            className={filtro === f.valor ? "btn-primary" : "btn-secondary"}
+            className={`na-filtro-btn ${filtro === f.valor ? "activo" : ""}`}
             onClick={() => setFiltro(f.valor)}
           >
             {f.etiqueta}
@@ -209,62 +189,71 @@ export function PanelNeroxAnaliza() {
       </div>
 
       {/* Listado */}
-      {cargando && <p className="text-muted">Cargando…</p>}
       {error && <p className="field-error">{error}</p>}
+
+      {cargando && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }} aria-label="Cargando negocios analizados">
+          <TarjetaSkeleton />
+          <TarjetaSkeleton />
+          <TarjetaSkeleton />
+        </div>
+      )}
 
       {!cargando && !error && negocios.length === 0 && (
         <p className="text-muted">No hay negocios analizados todavía con este filtro. Prueba a escanear un mercado arriba.</p>
       )}
 
-      <div className="cal-sin-programar-lista">
-        {negocios.map((n) => (
-          <div key={n.id} className="cal-sin-programar-item" style={{ alignItems: "flex-start", flexDirection: "column", gap: "0.5rem" }}>
-            <div style={{ display: "flex", justifyContent: "space-between", width: "100%", alignItems: "center" }}>
-              <strong className="cal-item-titulo">{n.nombreNegocio}</strong>
-              <span
-                style={{
-                  fontSize: "0.7rem",
-                  fontWeight: 700,
-                  color: "white",
-                  background: COLOR_STATUS[n.status],
-                  padding: "2px 10px",
-                  borderRadius: "999px",
-                }}
-              >
-                {n.status} · ICP {n.icp}
-              </span>
-            </div>
-            <div className="cal-item-tipo">
-              {n.sector} · {n.ciudad} {n.web ? `· ${n.web}` : "· sin web detectada"}
-            </div>
-            <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap" }}>
-              {n.flags.map((f, i) => (
+      {!cargando && !error && negocios.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
+          {negocios.map((n) => (
+            <div key={n.id} className="na-card">
+              <div style={{ display: "flex", justifyContent: "space-between", width: "100%", alignItems: "center" }}>
+                <strong style={{ fontSize: "0.95rem" }}>{n.nombreNegocio}</strong>
                 <span
-                  key={i}
                   style={{
                     fontSize: "0.7rem",
-                    background: "var(--color-surface)",
-                    color: "var(--color-text-muted)",
-                    padding: "2px 8px",
+                    fontWeight: 700,
+                    color: "white",
+                    background: COLOR_STATUS[n.status],
+                    padding: "2px 10px",
                     borderRadius: "999px",
                   }}
                 >
-                  {f}
+                  {n.status} · ICP {n.icp}
                 </span>
-              ))}
+              </div>
+              <div style={{ fontSize: "0.8rem", color: "var(--color-text-muted)", margin: "0.3rem 0 0.5rem" }}>
+                {n.sector} · {n.ciudad} {n.web ? `· ${n.web}` : "· sin web detectada"}
+              </div>
+              <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap", marginBottom: "0.5rem" }}>
+                {n.flags.map((f, i) => (
+                  <span
+                    key={i}
+                    style={{
+                      fontSize: "0.7rem",
+                      background: "var(--color-surface)",
+                      color: "var(--color-text-muted)",
+                      padding: "2px 8px",
+                      borderRadius: "999px",
+                    }}
+                  >
+                    {f}
+                  </span>
+                ))}
+              </div>
+              <p style={{ margin: 0, fontSize: "0.9rem" }}>
+                <strong>Diagnóstico:</strong> {n.diagnostico}
+              </p>
+              <p style={{ margin: "0.25rem 0 0.5rem", fontSize: "0.9rem" }}>
+                <strong>Acción recomendada:</strong> {n.accion}
+              </p>
+              <div style={{ fontSize: "0.75rem", color: n.usadoEnPublicacion ? "var(--color-success)" : "var(--color-text-muted)" }}>
+                {n.usadoEnPublicacion ? "✅ Ya convertido en publicación" : "⏳ Pendiente de usar en contenido"}
+              </div>
             </div>
-            <p style={{ margin: 0, fontSize: "0.9rem" }}>
-              <strong>Diagnóstico:</strong> {n.diagnostico}
-            </p>
-            <p style={{ margin: 0, fontSize: "0.9rem" }}>
-              <strong>Acción recomendada:</strong> {n.accion}
-            </p>
-            <div style={{ fontSize: "0.75rem", color: n.usadoEnPublicacion ? "var(--color-success)" : "var(--color-text-muted)" }}>
-              {n.usadoEnPublicacion ? "✅ Ya convertido en publicación" : "⏳ Pendiente de usar en contenido"}
-            </div>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
