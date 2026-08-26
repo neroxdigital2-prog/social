@@ -16,6 +16,7 @@ const BRIDGE_ACCESO = process.env.IONOS_BRIDGE_URL_EMPRESA_ACCESO!;
 const BRIDGE_CONTAR = process.env.IONOS_BRIDGE_URL_PUBLICACIONES_CONTAR!;
 const BRIDGE_CREAR = process.env.IONOS_BRIDGE_URL_PUBLICACIONES_CREAR!;
 const BRIDGE_CONFIG_LISTAR = process.env.IONOS_BRIDGE_URL_CONFIG_API_LISTAR!;
+const BRIDGE_TENDENCIA = process.env.IONOS_BRIDGE_URL_TENDENCIA_RECIENTE!;
 
 const LIMITES_PLAN: Record<string, number> = {
   GRATIS: 5,
@@ -97,6 +98,16 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     openrouter: clavesGuardadas.find((c) => c.proveedor === "OPENROUTER")?.apiKey,
   };
 
+  // Tendencia del dia (Radar de Tendencias). Si falla o no hay ninguna
+  // guardada todavia, simplemente seguimos sin ese contexto extra.
+  let tendenciaActual: string | undefined;
+  if (BRIDGE_TENDENCIA) {
+    const tendenciaRes = await bridgeFetch(BRIDGE_TENDENCIA, {});
+    if (tendenciaRes.ok && tendenciaRes.data?.found) {
+      tendenciaActual = tendenciaRes.data.tendencia?.resumen;
+    }
+  }
+
   try {
     const generadas = await generarPublicaciones(
       {
@@ -109,7 +120,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       },
       cantidad,
       claves,
-      tema
+      tema,
+      tendenciaActual
     );
 
     const crear = await bridgeFetch(BRIDGE_CREAR, { empresaId: empresa.id, publicaciones: generadas });

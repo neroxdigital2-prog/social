@@ -56,7 +56,7 @@ function elegirTipos(cantidad: number): TipoPublicacion[] {
   return tipos;
 }
 
-function construirPrompts(perfil: PerfilEmpresa, cantidad: number, tema?: string) {
+function construirPrompts(perfil: PerfilEmpresa, cantidad: number, tema?: string, tendenciaActual?: string) {
   const tipos = elegirTipos(cantidad);
 
   const systemPrompt = `Eres un director de marketing digital experto en redes sociales para pequeñas y medianas empresas locales, con dominio de SEO para Instagram/Meta. Escribes en español, con tono cercano y profesional, adaptado al sector del negocio. Nunca inventas datos falsos sobre la empresa; usas solo la información proporcionada.
@@ -87,6 +87,7 @@ Servicios: ${perfil.servicios.join(", ") || "no especificados"}
 Web: ${perfil.web || "no disponible"}
 WhatsApp: ${perfil.whatsapp || "no disponible"}
 ${tema ? `\nTema o instrucción específica para estas publicaciones (síguela con prioridad, adaptando cada tipo de publicación a este tema): ${tema}\n` : ""}
+${tendenciaActual ? `\nCONTEXTO DE TENDENCIAS ACTUALES (investigado hoy por el Radar de Tendencias de Nerox, tenlo en cuenta para ajustar el enfoque si es relevante, sin forzarlo si no aplica a este negocio): ${tendenciaActual}\n` : ""}
 Tipos de publicación requeridos en este orden exacto, con su pilar de embudo (ATRAER→EDUCAR→DEMOSTRAR→CONFIANZA→CONVERTIR), su enfoque SEO y su FÓRMULA MAESTRA de estructura obligatoria:
 ${tipos.map((t) => `- ${t} [pilar: ${PILAR_POR_TIPO[t]?.pilar ?? "ATRAER"}] → SEO: ${PILAR_POR_TIPO[t]?.enfoqueSeo ?? "keyword del sector en el gancho inicial"} → ESTRUCTURA: ${PILAR_POR_TIPO[t]?.formula ?? "GANCHO → PROBLEMA → SOLUCIÓN → BENEFICIO → CTA"}`).join("\n")}
 
@@ -232,9 +233,10 @@ export async function generarPublicaciones(
   perfil: PerfilEmpresa,
   cantidad: number,
   claves: ClavesApi = {},
-  tema?: string
+  tema?: string,
+  tendenciaActual?: string
 ): Promise<PublicacionGenerada[]> {
-  const { systemPrompt, userPrompt } = construirPrompts(perfil, cantidad, tema);
+  const { systemPrompt, userPrompt } = construirPrompts(perfil, cantidad, tema, tendenciaActual);
 
   const geminiKey = claves.gemini || process.env.GEMINI_API_KEY;
   const groqKey = claves.groq || process.env.GROQ_API_KEY;
