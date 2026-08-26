@@ -10,6 +10,11 @@ interface Negocio {
   nombreNegocio: string;
   web: string;
   telefono: string | null;
+  direccion: string | null;
+  email: string | null;
+  whatsapp: string | null;
+  facebook: string | null;
+  instagram: string | null;
   rating: number;
   reviews: number;
   icp: number;
@@ -239,6 +244,11 @@ export function PanelNeroxAnaliza() {
               <div style={{ fontSize: "0.8rem", color: "var(--color-text-muted)", margin: "0.3rem 0 0.5rem" }}>
                 {n.sector} · {n.ciudad} {n.web ? `· ${n.web}` : "· sin web detectada"}
               </div>
+              {n.direccion && (
+                <div style={{ fontSize: "0.78rem", color: "var(--color-text-muted)", margin: "0 0 0.5rem" }}>
+                  📍 {n.direccion}
+                </div>
+              )}
               <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap", marginBottom: "0.5rem" }}>
                 {n.flags.map((f, i) => (
                   <span
@@ -261,6 +271,36 @@ export function PanelNeroxAnaliza() {
               <p style={{ margin: "0.25rem 0 0.5rem", fontSize: "0.9rem" }}>
                 <strong>Acción recomendada:</strong> {n.accion}
               </p>
+
+              {(n.telefono || n.email || n.whatsapp || n.facebook || n.instagram) && (
+                <div style={{ display: "flex", gap: "0.5rem", flexWrap: "wrap", marginBottom: "0.5rem" }}>
+                  {n.telefono && (
+                    <a href={`tel:${n.telefono}`} className="btn-secondary" style={{ fontSize: "0.75rem", padding: "3px 9px", textDecoration: "none" }}>
+                      ☎️ {n.telefono}
+                    </a>
+                  )}
+                  {n.whatsapp && (
+                    <a href={n.whatsapp} target="_blank" rel="noopener noreferrer" className="btn-secondary" style={{ fontSize: "0.75rem", padding: "3px 9px", textDecoration: "none" }}>
+                      📲 WhatsApp
+                    </a>
+                  )}
+                  {n.email && (
+                    <a href={`mailto:${n.email}`} className="btn-secondary" style={{ fontSize: "0.75rem", padding: "3px 9px", textDecoration: "none" }}>
+                      ✉️ {n.email}
+                    </a>
+                  )}
+                  {n.facebook && (
+                    <a href={n.facebook} target="_blank" rel="noopener noreferrer" className="btn-secondary" style={{ fontSize: "0.75rem", padding: "3px 9px", textDecoration: "none" }}>
+                      📘 Facebook
+                    </a>
+                  )}
+                  {n.instagram && (
+                    <a href={n.instagram} target="_blank" rel="noopener noreferrer" className="btn-secondary" style={{ fontSize: "0.75rem", padding: "3px 9px", textDecoration: "none" }}>
+                      📸 Instagram
+                    </a>
+                  )}
+                </div>
+              )}
 
               {n.propuestaVenta && (
                 <div
@@ -293,9 +333,9 @@ export function PanelNeroxAnaliza() {
                         👤 Ver lead en CRM
                       </a>
                     )}
-                    {n.telefono && (
+                    {(n.whatsapp || n.telefono) && (
                       <a
-                        href={`https://wa.me/${n.telefono.replace(/[^0-9]/g, "")}?text=${encodeURIComponent(n.propuestaVenta)}`}
+                        href={`${n.whatsapp || `https://wa.me/${n.telefono!.replace(/[^0-9]/g, "")}`}?text=${encodeURIComponent(n.propuestaVenta)}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="btn-primary"
