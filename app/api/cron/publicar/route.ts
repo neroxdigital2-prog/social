@@ -6,8 +6,66 @@ export const maxDuration = 60;
 const BRIDGE_SECRET = process.env.BRIDGE_SECRET!;
 const BRIDGE_PROGRAMADAS = process.env.IONOS_BRIDGE_URL_PUBLICACIONES_PROGRAMADAS_LIST!;
 const BRIDGE_MARCAR = process.env.IONOS_BRIDGE_URL_PUBLICACION_MARCAR_RESULTADO!;
+const BRIDGE_QA_RECHAZAR = process.env.IONOS_BRIDGE_URL_PUBLICACION_QA_RECHAZAR!;
 const CRON_SECRET = process.env.CRON_SECRET!;
+const GROQ_API_KEY = process.env.GROQ_API_KEY!;
+const WHATSAPP_ACCESS_TOKEN = process.env.WHATSAPP_ACCESS_TOKEN!;
+const WHATSAPP_PHONE_NUMBER_ID = "1212209208648547"; // numero de negocio de Nerox (remitente)
+const WHATSAPP_ALERTA_NUMERO = "34641801175"; // numero personal donde llegan las alertas del sistema
+const WHATSAPP_API_VERSION = "v21.0";
 const GRAPH_VERSION = "v21.0";
+
+// --- QA de Marca: revisa el texto contra la rubrica de Nerox antes de publicar ---
+const RUBRICA_MARCA = `Tono de marca de Nerox Digital: cercano y directo, como hablarle a un amigo dueño de un negocio. NO debe sonar corporativo/frio, NO debe usar jerga tecnica sin explicar, NO debe tener errores ortograficos obvios, NO debe prometer resultados exagerados o falsos ("resultados garantizados 100%", "el mejor del mundo"), NO debe sonar agresivo o de presion excesiva de venta.`;
+
+async function evaluarQA(texto: string): Promise<{ aprueba: boolean; motivo?: string }> {
+  if (!GROQ_API_KEY) return { aprueba: true }; // si no hay clave, no bloqueamos la publicacion
+  try {
+    const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${GROQ_API_KEY}` },
+      body: JSON.stringify({
+        model: "openai/gpt-oss-120b",
+        messages: [
+          {
+            role: "system",
+            content: `Eres el revisor de calidad de marca de Nerox Digital. ${RUBRICA_MARCA} Responde SOLO un JSON: {"aprueba": true|false, "motivo": "razon breve si no aprueba, o cadena vacia si aprueba"}.`,
+          },
+          { role: "user", content: texto },
+        ],
+        response_format: { type: "json_object" },
+        reasoning_effort: "low",
+        temperature: 0,
+        max_tokens: 300,
+      }),
+    });
+    if (!res.ok) return { aprueba: true }; // si el QA falla tecnicamente, no bloqueamos por eso
+    const data = await res.json();
+    const contenido = data?.choices?.[0]?.message?.content || "{}";
+    const veredicto = JSON.parse(contenido.replace(/```json|```/gi, "").trim());
+    return { aprueba: veredicto.aprueba !== false, motivo: veredicto.motivo || undefined };
+  } catch {
+    return { aprueba: true }; // ante cualquier error tecnico del QA, no bloqueamos la publicacion
+  }
+}
+
+async function enviarAlertaWhatsApp(mensaje: string) {
+  if (!WHATSAPP_ACCESS_TOKEN) return;
+  try {
+    await fetch(`https://graph.facebook.com/${WHATSAPP_API_VERSION}/${WHATSAPP_PHONE_NUMBER_ID}/messages`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${WHATSAPP_ACCESS_TOKEN}` },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        to: WHATSAPP_ALERTA_NUMERO,
+        type: "text",
+        text: { body: mensaje },
+      }),
+    });
+  } catch (err) {
+    console.error("Error enviando alerta de WhatsApp:", err);
+  }
+}
 
 interface RedConectadaResumen {
   red: "FACEBOOK" | "INSTAGRAM" | "LINKEDIN" | "TIKTOK" | "GOOGLE" | "TWITTER";
@@ -197,6 +255,24 @@ export async function GET(req: NextRequest) {
 
   for (const pub of Array.isArray(publicaciones) ? publicaciones : []) {
     const textoCompleto = `${pub.texto}\n\n${(pub.hashtags || []).join(" ")}`.trim();
+
+    // --- QA de Marca: revisa antes de publicar en cualquier red ---
+    const qa = await evaluarQA(pub.texto);
+    if (!qa.aprueba) {
+      await fetch(BRIDGE_QA_RECHAZAR, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "X-Bridge-Secret": BRIDGE_SECRET },
+        body: JSON.stringify({ id: pub.id }),
+      }).catch(() => {});
+
+      await enviarAlertaWhatsApp(
+        `⚠️ Nerox QA: una publicación NO se publicó automáticamente.\n\nMotivo: ${qa.motivo || "No cumple la rúbrica de marca"}\n\nQuedó en Borrador para que la revises: "${pub.texto.slice(0, 100)}..."`
+      );
+
+      resumen.push({ publicacionId: pub.id, qaRechazado: true, motivo: qa.motivo });
+      continue;
+    }
+
     const resultadosPorRed = [];
 
     for (const red of pub.redesConectadas || []) {
