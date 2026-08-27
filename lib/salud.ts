@@ -139,7 +139,10 @@ export async function revisarTodosLosBridges(): Promise<{ resumen: ResumenSalud;
 }
 
 const WHATSAPP_ACCESS_TOKEN = process.env.WHATSAPP_ACCESS_TOKEN;
-const WHATSAPP_PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID;
+// Mismo Phone Number ID de negocio (remitente) que ya usa el QA de Marca —
+// alli esta hardcodeado en el codigo, no como variable de entorno, por eso
+// WHATSAPP_PHONE_NUMBER_ID nunca existio en Vercel.
+const WHATSAPP_PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID || "1212209208648547";
 const WHATSAPP_ALERTA_NUMERO = process.env.WHATSAPP_ALERTA_NUMERO || "34641801175";
 const WHATSAPP_API_VERSION = "v21.0";
 
