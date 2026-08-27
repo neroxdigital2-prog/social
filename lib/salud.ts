@@ -143,10 +143,22 @@ const WHATSAPP_PHONE_NUMBER_ID = process.env.WHATSAPP_PHONE_NUMBER_ID;
 const WHATSAPP_ALERTA_NUMERO = process.env.WHATSAPP_ALERTA_NUMERO || "34641801175";
 const WHATSAPP_API_VERSION = "v21.0";
 
-export async function enviarAlertaWhatsApp(mensaje: string) {
-  if (!WHATSAPP_ACCESS_TOKEN || !WHATSAPP_PHONE_NUMBER_ID) return;
+export interface ResultadoEnvioWhatsApp {
+  intentado: boolean;
+  ok: boolean;
+  detalle: string;
+}
+
+export async function enviarAlertaWhatsApp(mensaje: string): Promise<ResultadoEnvioWhatsApp> {
+  if (!WHATSAPP_ACCESS_TOKEN || !WHATSAPP_PHONE_NUMBER_ID) {
+    return {
+      intentado: false,
+      ok: false,
+      detalle: `Faltan variables de entorno: ${!WHATSAPP_ACCESS_TOKEN ? "WHATSAPP_ACCESS_TOKEN " : ""}${!WHATSAPP_PHONE_NUMBER_ID ? "WHATSAPP_PHONE_NUMBER_ID" : ""}`.trim(),
+    };
+  }
   try {
-    await fetch(`https://graph.facebook.com/${WHATSAPP_API_VERSION}/${WHATSAPP_PHONE_NUMBER_ID}/messages`, {
+    const res = await fetch(`https://graph.facebook.com/${WHATSAPP_API_VERSION}/${WHATSAPP_PHONE_NUMBER_ID}/messages`, {
       method: "POST",
       headers: { "Content-Type": "application/json", Authorization: `Bearer ${WHATSAPP_ACCESS_TOKEN}` },
       body: JSON.stringify({
@@ -156,7 +168,12 @@ export async function enviarAlertaWhatsApp(mensaje: string) {
         text: { body: mensaje },
       }),
     });
+    const texto = await res.text();
+    if (!res.ok) {
+      return { intentado: true, ok: false, detalle: `Meta respondió ${res.status}: ${texto.slice(0, 300)}` };
+    }
+    return { intentado: true, ok: true, detalle: texto.slice(0, 300) };
   } catch (err) {
-    console.error("Error enviando alerta de salud por WhatsApp:", err);
+    return { intentado: true, ok: false, detalle: err instanceof Error ? err.message : String(err) };
   }
 }

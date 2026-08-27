@@ -18,8 +18,10 @@ export async function GET(req: NextRequest) {
   }
 
   const { resumen, resultados } = await revisarTodosLosBridges();
+  const esPrueba = req.nextUrl.searchParams.get("prueba") === "1";
 
-  if (resumen.conProblemas > 0) {
+  let whatsapp = null;
+  if (resumen.conProblemas > 0 || esPrueba) {
     const conProblemas = resultados.filter((r) => r.estado !== "OK");
     const listado = conProblemas
       .slice(0, 10)
@@ -27,10 +29,12 @@ export async function GET(req: NextRequest) {
       .join("\n");
     const extra = conProblemas.length > 10 ? `\n…y ${conProblemas.length - 10} más.` : "";
 
-    await enviarAlertaWhatsApp(
-      `🔴 Nerox Salud: ${resumen.conProblemas} de ${resumen.total} bridges con problemas.\n\n${listado}${extra}`
-    );
+    const mensaje = esPrueba
+      ? `🧪 Nerox Salud: mensaje de prueba forzado. Estado real: ${resumen.ok}/${resumen.total} bridges OK.${conProblemas.length ? "\n\n" + listado + extra : ""}`
+      : `🔴 Nerox Salud: ${resumen.conProblemas} de ${resumen.total} bridges con problemas.\n\n${listado}${extra}`;
+
+    whatsapp = await enviarAlertaWhatsApp(mensaje);
   }
 
-  return NextResponse.json({ ok: true, resumen });
+  return NextResponse.json({ ok: true, resumen, whatsapp });
 }
