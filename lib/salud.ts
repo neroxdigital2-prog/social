@@ -182,7 +182,7 @@ export async function enviarAlertaWhatsApp(mensaje: string): Promise<ResultadoEn
 }
 
 /**
- * Envia la alerta de salud usando la plantilla APROBADA "nerox_alerta_salud"
+ * Envia la alerta de salud usando la plantilla APROBADA "nerox_alerta_salud_v2"
  * (categoria UTILITY, idioma es). A diferencia de un mensaje de texto libre,
  * las plantillas funcionan SIEMPRE, sin depender de que Amor le haya escrito
  * al bot en las ultimas 24h. Requiere que la plantilla ya este aprobada en
@@ -205,7 +205,7 @@ export async function enviarAlertaWhatsAppPlantilla(conProblemas: number, total:
         to: WHATSAPP_ALERTA_NUMERO,
         type: "template",
         template: {
-          name: "nerox_alerta_salud",
+          name: "nerox_alerta_salud_v2",
           language: { code: "es" },
           components: [
             {
