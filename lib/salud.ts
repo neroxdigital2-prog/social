@@ -180,3 +180,51 @@ export async function enviarAlertaWhatsApp(mensaje: string): Promise<ResultadoEn
     return { intentado: true, ok: false, detalle: err instanceof Error ? err.message : String(err) };
   }
 }
+
+/**
+ * Envia la alerta de salud usando la plantilla APROBADA "nerox_alerta_salud"
+ * (categoria UTILITY, idioma es). A diferencia de un mensaje de texto libre,
+ * las plantillas funcionan SIEMPRE, sin depender de que Amor le haya escrito
+ * al bot en las ultimas 24h. Requiere que la plantilla ya este aprobada en
+ * WhatsApp Manager antes de usarla, o Meta la rechazara.
+ */
+export async function enviarAlertaWhatsAppPlantilla(conProblemas: number, total: number): Promise<ResultadoEnvioWhatsApp> {
+  if (!WHATSAPP_ACCESS_TOKEN || !WHATSAPP_PHONE_NUMBER_ID) {
+    return {
+      intentado: false,
+      ok: false,
+      detalle: `Faltan variables de entorno: ${!WHATSAPP_ACCESS_TOKEN ? "WHATSAPP_ACCESS_TOKEN " : ""}${!WHATSAPP_PHONE_NUMBER_ID ? "WHATSAPP_PHONE_NUMBER_ID" : ""}`.trim(),
+    };
+  }
+  try {
+    const res = await fetch(`https://graph.facebook.com/${WHATSAPP_API_VERSION}/${WHATSAPP_PHONE_NUMBER_ID}/messages`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${WHATSAPP_ACCESS_TOKEN}` },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        to: WHATSAPP_ALERTA_NUMERO,
+        type: "template",
+        template: {
+          name: "nerox_alerta_salud",
+          language: { code: "es" },
+          components: [
+            {
+              type: "body",
+              parameters: [
+                { type: "text", text: String(conProblemas) },
+                { type: "text", text: String(total) },
+              ],
+            },
+          ],
+        },
+      }),
+    });
+    const texto = await res.text();
+    if (!res.ok) {
+      return { intentado: true, ok: false, detalle: `Meta respondió ${res.status}: ${texto.slice(0, 300)}` };
+    }
+    return { intentado: true, ok: true, detalle: texto.slice(0, 300) };
+  } catch (err) {
+    return { intentado: true, ok: false, detalle: err instanceof Error ? err.message : String(err) };
+  }
+}
