@@ -50,7 +50,11 @@ export function PanelSalud() {
   }, []);
 
   if (cargando) {
-    return <p className="text-muted">Revisando los {resultados.length || "..."} bridges, puede tardar unos segundos…</p>;
+    return (
+      <p className="text-muted">
+        🟡 Revisando los {resultados.length || "..."} bridges, puede tardar unos segundos…
+      </p>
+    );
   }
 
   if (error) {
@@ -62,6 +66,28 @@ export function PanelSalud() {
 
   return (
     <div>
+      {resumen && (
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "0.6rem",
+            padding: "0.9rem 1.1rem",
+            borderRadius: "var(--radius-md)",
+            marginBottom: "1.25rem",
+            fontWeight: 700,
+            fontSize: "1rem",
+            color: "white",
+            background: resumen.conProblemas > 0 ? "var(--color-error)" : "var(--color-success)",
+          }}
+        >
+          <span style={{ fontSize: "1.4rem" }}>{resumen.conProblemas > 0 ? "🔴" : "🟢"}</span>
+          {resumen.conProblemas > 0
+            ? `${resumen.conProblemas} agente${resumen.conProblemas > 1 ? "s" : ""} con problemas ahora mismo`
+            : "Todos los agentes funcionando correctamente"}
+        </div>
+      )}
+
       {resumen && (
         <p style={{ marginBottom: "1.25rem" }}>
           <strong>{resumen.ok}</strong> de <strong>{resumen.total}</strong> bridges funcionando correctamente.
