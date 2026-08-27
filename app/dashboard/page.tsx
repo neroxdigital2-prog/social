@@ -1,5 +1,6 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
+import { BannerSaludCompacto } from "@/components/salud/BannerSaludCompacto";
 
 export default async function DashboardPage() {
   const session = await auth();
@@ -24,6 +25,7 @@ export default async function DashboardPage() {
 
   return (
     <main className="dashboard-shell">
+      <BannerSaludCompacto />
       <header className="dashboard-header">
         <h1>Bienvenido, {session.user.name}</h1>
         <p className="text-muted">Este es el resumen de tu actividad</p>

@@ -12,6 +12,7 @@ const ENLACES = [
   { href: "/whatsapp", label: "WhatsApp" },
   { href: "/agenda", label: "Agenda" },
   { href: "/configuracion", label: "Configuración" },
+  { href: "/salud", label: "🩺 Salud" },
 ];
 
 export function NavLinks() {
