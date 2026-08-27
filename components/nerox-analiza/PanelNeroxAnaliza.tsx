@@ -70,6 +70,7 @@ export function PanelNeroxAnaliza() {
   const [ciudad, setCiudad] = useState("Madrid");
   const [escaneando, setEscaneando] = useState(false);
   const [mensajeEscaneo, setMensajeEscaneo] = useState<string | null>(null);
+  const [cupoGroq, setCupoGroq] = useState<Record<string, string> | null>(null);
 
   async function copiarPropuesta(id: string, texto: string) {
     try {
@@ -120,6 +121,7 @@ export function PanelNeroxAnaliza() {
         setMensajeEscaneo(`❌ ${data?.error || "Error al escanear."}`);
       } else {
         setMensajeEscaneo(`✅ Se analizaron ${data.total} negocios de "${sector}" en ${ciudad}.`);
+        if (data.cupoGroq && Object.keys(data.cupoGroq).length > 0) setCupoGroq(data.cupoGroq);
         cargar(filtro);
       }
     } catch {
@@ -166,6 +168,12 @@ export function PanelNeroxAnaliza() {
               </button>
             </div>
             {mensajeEscaneo && <p style={{ marginTop: "0.75rem", marginBottom: 0 }}>{mensajeEscaneo}</p>}
+            {cupoGroq && (
+              <p style={{ marginTop: "0.4rem", marginBottom: 0, fontSize: "0.78rem", color: "var(--color-text-muted)" }}>
+                🎫 Cupo Groq: {cupoGroq.remaining_tokens ?? "?"} / {cupoGroq.limit_tokens ?? "?"} tokens restantes
+                {cupoGroq.reset_tokens ? ` (se resetea en ${cupoGroq.reset_tokens})` : ""} · {cupoGroq.remaining_requests ?? "?"} / {cupoGroq.limit_requests ?? "?"} peticiones
+              </p>
+            )}
           </div>
         </div>
       </div>
