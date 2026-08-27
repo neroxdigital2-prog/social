@@ -169,10 +169,22 @@ export function PanelNeroxAnaliza() {
             </div>
             {mensajeEscaneo && <p style={{ marginTop: "0.75rem", marginBottom: 0 }}>{mensajeEscaneo}</p>}
             {cupoGroq && (
-              <p style={{ marginTop: "0.4rem", marginBottom: 0, fontSize: "0.78rem", color: "var(--color-text-muted)" }}>
+              <p
+                style={{
+                  marginTop: "0.5rem",
+                  marginBottom: 0,
+                  fontSize: "0.92rem",
+                  fontWeight: 600,
+                  color: "var(--color-primary)",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "0.35rem",
+                }}
+              >
+                <span style={{ fontSize: "1.15rem" }}>⚡</span>
                 {cupoGroq.tokens_usados_esta_llamada
-                  ? `🎫 Groq: ${cupoGroq.tokens_usados_esta_llamada} tokens usados en este escaneo (prompt ${cupoGroq.tokens_prompt}, respuesta ${cupoGroq.tokens_respuesta}) · límite de la cuenta: 8000/min`
-                  : `🎫 Groq: ${cupoGroq.remaining_tokens ?? "?"} / ${cupoGroq.limit_tokens ?? "?"} tokens restantes`}
+                  ? `Groq: ${cupoGroq.tokens_usados_esta_llamada} tokens usados en este escaneo (prompt ${cupoGroq.tokens_prompt}, respuesta ${cupoGroq.tokens_respuesta}) · límite de la cuenta: 8000/min`
+                  : `Groq: ${cupoGroq.remaining_tokens ?? "?"} / ${cupoGroq.limit_tokens ?? "?"} tokens restantes`}
               </p>
             )}
           </div>
