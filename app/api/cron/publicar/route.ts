@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
+import { waitUntil } from "@vercel/functions";
 
 export const maxDuration = 60;
 
@@ -296,13 +297,7 @@ async function publicarEnX(accessTokenPack: string, texto: string) {
   return { postIdExterno: data?.data?.id };
 }
 
-export async function GET(req: NextRequest) {
-  const authHeader = req.headers.get("authorization");
-  const tokenRecibido = authHeader?.replace("Bearer ", "");
-  if (tokenRecibido !== CRON_SECRET) {
-    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
-  }
-
+async function procesarPublicaciones() {
   const res = await fetch(BRIDGE_PROGRAMADAS, {
     method: "POST",
     headers: { "Content-Type": "application/json", "X-Bridge-Secret": BRIDGE_SECRET },
@@ -362,5 +357,31 @@ export async function GET(req: NextRequest) {
     resumen.push({ publicacionId: pub.id, resultadosPorRed });
   }
 
-  return NextResponse.json({ ok: true, procesadas: resumen.length, detalle: resumen });
+  return resumen;
+}
+
+export async function GET(req: NextRequest) {
+  const authHeader = req.headers.get("authorization");
+  const tokenRecibido = authHeader?.replace("Bearer ", "");
+  if (tokenRecibido !== CRON_SECRET) {
+    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  }
+
+  // IMPORTANTE: cron-job.org (y otros disparadores externos) suelen cortar
+  // la conexión a los 30s. Publicar en Instagram por si solo puede tardar
+  // hasta 30s (esperando a que el contenedor de imagen quede FINISHED), y si
+  // hay varias publicaciones/redes en el lote, el total facilmente supera
+  // ese limite - el disparador se rendia esperando y el proceso se cortaba a
+  // medias (publicaciones que se quedaban en "Programada" para siempre).
+  //
+  // Por eso se responde OK de inmediato (en milisegundos) y el trabajo real
+  // sigue corriendo en segundo plano con waitUntil, dentro del limite de
+  // Vercel (maxDuration=60s), sin depender de que el cliente siga esperando.
+  waitUntil(
+    procesarPublicaciones().catch((err) => {
+      console.error("Error procesando publicaciones en segundo plano:", err);
+    })
+  );
+
+  return NextResponse.json({ ok: true, procesando: true });
 }
