@@ -3,6 +3,13 @@
 import { useMemo, useState } from "react";
 import { PublicacionCard } from "@/components/biblioteca/PublicacionCard";
 
+interface ResultadoRed {
+  red: string;
+  postIdExterno: string | null;
+  publicadoEn: string | null;
+  error: string | null;
+}
+
 interface Publicacion {
   id: string;
   empresaId: string;
@@ -13,6 +20,8 @@ interface Publicacion {
   estado: string;
   imagenPrompt: string;
   imagenUrl: string | null;
+  fechaProgramada: string | null;
+  redes: ResultadoRed[];
 }
 
 const ESTADOS = ["Todos", "BORRADOR", "PROGRAMADA", "PUBLICADA", "RECHAZADA"] as const;

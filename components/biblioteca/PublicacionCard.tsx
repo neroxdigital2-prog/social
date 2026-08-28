@@ -3,6 +3,13 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
+interface ResultadoRed {
+  red: string;
+  postIdExterno: string | null;
+  publicadoEn: string | null;
+  error: string | null;
+}
+
 interface Publicacion {
   id: string;
   empresaId: string;
@@ -13,6 +20,8 @@ interface Publicacion {
   estado: string;
   imagenPrompt: string;
   imagenUrl: string | null;
+  fechaProgramada: string | null;
+  redes: ResultadoRed[];
 }
 
 function fileALeerBase64(file: File): Promise<string> {
@@ -309,6 +318,54 @@ export function PublicacionCard({ publicacion }: { publicacion: Publicacion }) {
           <span key={tag} className="tag">#{tag}</span>
         ))}
       </div>
+
+      {publicacion.fechaProgramada && (
+        <p style={{ fontSize: "0.8rem", color: "var(--color-text-muted)", margin: "0.4rem 0 0" }}>
+          🗓️ Programada: {new Date(publicacion.fechaProgramada).toLocaleString("es-ES", {
+            day: "2-digit",
+            month: "2-digit",
+            year: "numeric",
+            hour: "2-digit",
+            minute: "2-digit",
+          })}
+        </p>
+      )}
+
+      {publicacion.redes.length > 0 && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "0.25rem", marginTop: "0.5rem" }}>
+          {publicacion.redes.map((r, i) => (
+            <div key={i} style={{ fontSize: "0.78rem", display: "flex", alignItems: "center", gap: "0.35rem" }}>
+              {r.error ? (
+                <>
+                  <span>🔴</span>
+                  <span>
+                    {r.red}: falló — {r.error}
+                  </span>
+                </>
+              ) : r.publicadoEn ? (
+                <>
+                  <span>🟢</span>
+                  <span>
+                    {r.red}: publicada el{" "}
+                    {new Date(r.publicadoEn).toLocaleString("es-ES", {
+                      day: "2-digit",
+                      month: "2-digit",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <span>🟡</span>
+                  <span>{r.red}: procesando…</span>
+                </>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+
       <span className={`pub-estado estado-${publicacion.estado.toLowerCase()}`}>{publicacion.estado}</span>
     </article>
   );

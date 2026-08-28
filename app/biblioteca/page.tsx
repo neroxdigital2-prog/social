@@ -3,6 +3,13 @@ import { redirect } from "next/navigation";
 import { BibliotecaGrid } from "@/components/biblioteca/BibliotecaGrid";
 import { CrearManualForm } from "@/components/biblioteca/CrearManualForm";
 
+interface ResultadoRed {
+  red: string;
+  postIdExterno: string | null;
+  publicadoEn: string | null;
+  error: string | null;
+}
+
 interface Publicacion {
   id: string;
   empresaId: string;
@@ -13,6 +20,8 @@ interface Publicacion {
   estado: string;
   imagenPrompt: string;
   imagenUrl: string | null;
+  fechaProgramada: string | null;
+  redes: ResultadoRed[];
 }
 
 async function bridgePost(url: string, body: unknown) {
