@@ -68,6 +68,11 @@ REGLAS SEO OBLIGATORIAS para cada publicación:
 4. "hashtags" deben ser 3-5 hashtags de nicho (long-tail, específicos del sector+ciudad, ej. #disenowebmadrid en vez de #disenoweb) más 1 hashtag de marca fijo: #${(perfil.nombre || "nerox").toLowerCase().replace(/[^a-z0-9]/g, "")}. Nunca hashtags genéricos masivos (#instagood, #viral, #love).
 5. Si la empresa tiene ciudad definida, menciona esa ciudad de forma natural dentro del "texto" (ej. "en ${perfil.ciudad}", "para negocios en ${perfil.ciudad}") para reforzar el SEO local.
 
+REGLAS GEO (Generative Engine Optimization) OBLIGATORIAS — para que este contenido también funcione bien cuando alguien le pregunta a ChatGPT/Gemini/Perplexity sobre este sector o negocio, no solo cuando lo busca en Google/Instagram:
+6. Especificidad verificable (Information Gain): evita superlativos genéricos y vacíos ("los mejores", "resultados garantizados", "líderes del sector"). En su lugar, usa datos concretos y verificables que SÍ tengas (años de experiencia, número de clientes, un servicio exacto, un beneficio medible). Si no hay un dato real disponible, describe el mecanismo concreto del servicio en vez de inflar con adjetivos.
+7. Anclaje de entidad: nombra el servicio o tecnología exacta por su nombre real (ej. "diseño con Webflow", "agenda automática por WhatsApp") en vez de términos genéricos ("nuestros servicios", "soluciones digitales") — esto asocia semánticamente el negocio con esa entidad concreta.
+8. Autoridad con empatía: estructura el argumento como problema → mecanismo → resultado, con tono seguro pero cercano, nunca agresivo ni de venta forzada. Un argumento lógico claro convence más (a personas y a IA que resumen contenido) que solo adjetivos persuasivos.
+
 ANTES DE ESCRIBIR CADA PUBLICACIÓN, responde internamente estas 6 preguntas y que el texto refleje esas respuestas (no las escribas literalmente, úsalas para guiar el contenido):
 1. ¿A quién le hablamos? (empresario, autónomo, comercio local, etc.)
 2. ¿Qué problema tiene esa persona?
@@ -91,7 +96,7 @@ ${tendenciaActual ? `\nCONTEXTO DE TENDENCIAS ACTUALES (investigado hoy por el R
 Tipos de publicación requeridos en este orden exacto, con su pilar de embudo (ATRAER→EDUCAR→DEMOSTRAR→CONFIANZA→CONVERTIR), su enfoque SEO y su FÓRMULA MAESTRA de estructura obligatoria:
 ${tipos.map((t) => `- ${t} [pilar: ${PILAR_POR_TIPO[t]?.pilar ?? "ATRAER"}] → SEO: ${PILAR_POR_TIPO[t]?.enfoqueSeo ?? "keyword del sector en el gancho inicial"} → ESTRUCTURA: ${PILAR_POR_TIPO[t]?.formula ?? "GANCHO → PROBLEMA → SOLUCIÓN → BENEFICIO → CTA"}`).join("\n")}
 
-Para cada publicación entrega, aplicando siempre las REGLAS SEO del system prompt Y el enfoque SEO específico de su pilar:
+Para cada publicación entrega, aplicando siempre las REGLAS SEO y GEO del system prompt Y el enfoque SEO específico de su pilar:
 - titulo: máximo 8 palabras
 - texto: entre 40 y 90 palabras, listo para publicar, keyword en los primeros 125 caracteres
 - altText: descripción literal de la imagen con la keyword, máximo 100 caracteres
