@@ -315,7 +315,9 @@ export function PublicacionCard({ publicacion }: { publicacion: Publicacion }) {
 
       <div className="pub-hashtags">
         {publicacion.hashtags.map((tag) => (
-          <span key={tag} className="tag">#{tag}</span>
+          <span key={tag}>
+            <span className="tag">#{tag.replace(/^#+/, "")}</span>{" "}
+          </span>
         ))}
       </div>
 
