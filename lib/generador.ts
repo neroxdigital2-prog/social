@@ -8,6 +8,9 @@ export interface PerfilEmpresa {
   servicios: string[];
   web?: string | null;
   whatsapp?: string | null;
+  datosVerificables?: string | null;
+  tecnologiasMarcas?: string | null;
+  diferenciador?: string | null;
 }
 
 export interface PublicacionGenerada {
@@ -31,14 +34,14 @@ export interface ClavesApi {
 // un enfoque de KPI y de SEO distinto, para que el prompt lo aplique.
 const PILAR_POR_TIPO: Record<string, { pilar: string; enfoqueSeo: string; formula: string }> = {
   INFORMATIVA:         { pilar: "ATRAER",    enfoqueSeo: "gancho fuerte en el primer segundo, keyword de problema/dolor del cliente, hashtags de alcance amplio dentro del nicho", formula: "GANCHO → PROBLEMA → SOLUCIÓN → BENEFICIO → CTA" },
-  CONSEJO:             { pilar: "EDUCAR",    enfoqueSeo: "keyword de 'como hacer X', formato lista/pasos que invite a guardar", formula: "PROBLEMA → CONSEJOS → SOLUCIÓN → CTA" },
+  CONSEJO:             { pilar: "EDUCAR",    enfoqueSeo: "keyword de 'como hacer X', formato lista/pasos que invite a guardar. RESPUESTA PRIMERO: da el consejo clave en la primera frase, luego desarrolla el porque/como.", formula: "RESPUESTA DIRECTA → PROBLEMA → CONSEJOS → SOLUCIÓN → CTA" },
   CASO_EXITO:          { pilar: "CONFIANZA", enfoqueSeo: "keyword de resultado medible (numeros, porcentajes), hashtags de prueba social", formula: "ANTES → PROBLEMA → SOLUCIÓN NEROX → RESULTADO → CTA" },
   ANTES_DESPUES:       { pilar: "CONFIANZA", enfoqueSeo: "keyword de transformacion, contraste antes/despues explicito en el texto", formula: "ANTES → PROBLEMA → SOLUCIÓN NEROX → RESULTADO → CTA" },
   PROMOCION:           { pilar: "CONVERTIR", enfoqueSeo: "keyword de servicio + ciudad, CTA directo y urgente", formula: "GANCHO → PROBLEMA → SOLUCIÓN → BENEFICIO → CTA" },
   PREGUNTA_FRECUENTE:  { pilar: "EDUCAR",    enfoqueSeo: "keyword en formato pregunta literal (asi la gente busca), responde en el propio texto", formula: "PROBLEMA → CONSEJOS → SOLUCIÓN → CTA" },
   NOTICIA_SECTOR:      { pilar: "ATRAER",    enfoqueSeo: "keyword de tendencia/actualidad del sector, hashtags de novedad", formula: "GANCHO → PROBLEMA → SOLUCIÓN → BENEFICIO → CTA" },
   CURIOSIDAD:          { pilar: "ATRAER",    enfoqueSeo: "keyword de dato sorprendente, maximiza guardados y compartidos", formula: "GANCHO → PROBLEMA → SOLUCIÓN → BENEFICIO → CTA" },
-  MITO_REALIDAD:       { pilar: "EDUCAR",    enfoqueSeo: "keyword del mito mas comun del sector, formato mito vs realidad", formula: "PROBLEMA → CONSEJOS → SOLUCIÓN → CTA" },
+  MITO_REALIDAD:       { pilar: "EDUCAR",    enfoqueSeo: "keyword del mito mas comun del sector, formato mito vs realidad. RESPUESTA PRIMERO: declara la realidad (la verdad) en la primera frase, luego contrasta con el mito.", formula: "REALIDAD DIRECTA → MITO COMUN → POR QUE ES FALSO → SOLUCIÓN → CTA" },
   TESTIMONIO:          { pilar: "CONFIANZA", enfoqueSeo: "keyword de experiencia de cliente real, tono cercano", formula: "ANTES → PROBLEMA → SOLUCIÓN NEROX → RESULTADO → CTA" },
   ENCUESTA:            { pilar: "DEMOSTRAR", enfoqueSeo: "keyword de decision/comparacion, fomenta comentarios", formula: "PROBLEMA → NEROX FUNCIONANDO → RESULTADO → CTA" },
   LLAMADA_ACCION:      { pilar: "CONVERTIR", enfoqueSeo: "keyword de servicio + ciudad, CTA muy directo (escribe/llama/agenda ya)", formula: "GANCHO → PROBLEMA → SOLUCIÓN → BENEFICIO → CTA" },
@@ -72,6 +75,7 @@ REGLAS GEO (Generative Engine Optimization) OBLIGATORIAS — para que este conte
 6. Especificidad verificable (Information Gain): evita superlativos genéricos y vacíos ("los mejores", "resultados garantizados", "líderes del sector"). En su lugar, usa datos concretos y verificables que SÍ tengas (años de experiencia, número de clientes, un servicio exacto, un beneficio medible). Si no hay un dato real disponible, describe el mecanismo concreto del servicio en vez de inflar con adjetivos.
 7. Anclaje de entidad: nombra el servicio o tecnología exacta por su nombre real (ej. "diseño con Webflow", "agenda automática por WhatsApp") en vez de términos genéricos ("nuestros servicios", "soluciones digitales") — esto asocia semánticamente el negocio con esa entidad concreta.
 8. Autoridad con empatía: estructura el argumento como problema → mecanismo → resultado, con tono seguro pero cercano, nunca agresivo ni de venta forzada. Un argumento lógico claro convence más (a personas y a IA que resumen contenido) que solo adjetivos persuasivos.
+9. GUARDARRAÍL ANTI-INVENCIÓN: la regla 6 (especificidad verificable) NUNCA autoriza inventar una cifra, año, número de clientes o dato que no te haya sido dado explícitamente. Si no hay un "Dato verificable" en la información de la empresa (más abajo), describe el mecanismo concreto del servicio en su lugar — jamás rellenes con un número inventado para sonar más específico.
 
 ANTES DE ESCRIBIR CADA PUBLICACIÓN, responde internamente estas 6 preguntas y que el texto refleje esas respuestas (no las escribas literalmente, úsalas para guiar el contenido):
 1. ¿A quién le hablamos? (empresario, autónomo, comercio local, etc.)
@@ -91,6 +95,7 @@ Ciudad: ${perfil.ciudad}
 Servicios: ${perfil.servicios.join(", ") || "no especificados"}
 Web: ${perfil.web || "no disponible"}
 WhatsApp: ${perfil.whatsapp || "no disponible"}
+${perfil.datosVerificables ? `Dato verificable (usar SOLO esto para la regla de especificidad, nunca inventar otro): ${perfil.datosVerificables}\n` : ""}${perfil.tecnologiasMarcas ? `Tecnologías/marcas/certificaciones propias (usar el nombre exacto para el anclaje de entidad): ${perfil.tecnologiasMarcas}\n` : ""}${perfil.diferenciador ? `Diferenciador frente a la competencia (usar para reforzar el anclaje de entidad, sin exagerar): ${perfil.diferenciador}\n` : ""}
 ${tema ? `\nTema o instrucción específica para estas publicaciones (síguela con prioridad, adaptando cada tipo de publicación a este tema): ${tema}\n` : ""}
 ${tendenciaActual ? `\nCONTEXTO DE TENDENCIAS ACTUALES (investigado hoy por el Radar de Tendencias de Nerox, tenlo en cuenta para ajustar el enfoque si es relevante, sin forzarlo si no aplica a este negocio): ${tendenciaActual}\n` : ""}
 Tipos de publicación requeridos en este orden exacto, con su pilar de embudo (ATRAER→EDUCAR→DEMOSTRAR→CONFIANZA→CONVERTIR), su enfoque SEO y su FÓRMULA MAESTRA de estructura obligatoria:

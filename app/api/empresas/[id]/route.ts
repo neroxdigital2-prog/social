@@ -18,6 +18,9 @@ const BodySchema = z.object({
   tonoComunicacion: z.string().optional(),
   objetivoPrincipal: z.string().optional(),
   competidores: z.string().optional(),
+  datosVerificables: z.string().max(500).optional(),
+  tecnologiasMarcas: z.string().max(300).optional(),
+  diferenciador: z.string().max(500).optional(),
 });
 
 export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {

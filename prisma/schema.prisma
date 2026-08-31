@@ -41,6 +41,9 @@ model Empresa {
   metaAdAccountId        String?
   colorPrimario          String   @default("#6D28D9")
   logoUrl                String?
+  datosVerificables      String?  @db.Text
+  tecnologiasMarcas      String?  @db.Text
+  diferenciador          String?  @db.Text
   userId                 String
   user                   User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   agenciaId              String?

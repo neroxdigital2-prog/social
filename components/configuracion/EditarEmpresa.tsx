@@ -10,6 +10,9 @@ interface EmpresaDatos {
   ciudad: string;
   web?: string | null;
   whatsapp?: string | null;
+  datosVerificables?: string | null;
+  tecnologiasMarcas?: string | null;
+  diferenciador?: string | null;
 }
 
 export function EditarEmpresa({ empresa }: { empresa: EmpresaDatos }) {
@@ -20,6 +23,9 @@ export function EditarEmpresa({ empresa }: { empresa: EmpresaDatos }) {
   const [ciudad, setCiudad] = useState(empresa.ciudad);
   const [web, setWeb] = useState(empresa.web || "");
   const [whatsapp, setWhatsapp] = useState(empresa.whatsapp || "");
+  const [datosVerificables, setDatosVerificables] = useState(empresa.datosVerificables || "");
+  const [tecnologiasMarcas, setTecnologiasMarcas] = useState(empresa.tecnologiasMarcas || "");
+  const [diferenciador, setDiferenciador] = useState(empresa.diferenciador || "");
 
   const [guardando, setGuardando] = useState(false);
   const [mensaje, setMensaje] = useState<string | null>(null);
@@ -37,7 +43,7 @@ export function EditarEmpresa({ empresa }: { empresa: EmpresaDatos }) {
     const res = await fetch(`/api/empresas/${empresa.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ nombre, sector, ciudad, web, whatsapp }),
+      body: JSON.stringify({ nombre, sector, ciudad, web, whatsapp, datosVerificables, tecnologiasMarcas, diferenciador }),
     });
     const data = await res.json().catch(() => ({}));
     setGuardando(false);
@@ -99,6 +105,47 @@ export function EditarEmpresa({ empresa }: { empresa: EmpresaDatos }) {
           <label htmlFor="whatsapp-empresa">WhatsApp</label>
           <input id="whatsapp-empresa" type="text" value={whatsapp} onChange={(e) => setWhatsapp(e.target.value)} placeholder="+34 600 000 000" />
         </div>
+      </div>
+
+      <hr style={{ margin: "1.5rem 0", border: "none", borderTop: "1px solid #e5e5ea" }} />
+
+      <h3>Datos para contenido más específico (opcional)</h3>
+      <p className="text-muted" style={{ marginTop: 0, fontSize: "0.875rem" }}>
+        Esto ayuda a la IA a escribir publicaciones más concretas y creíbles en vez de frases genéricas.
+        No se inventa nada que no pongas aquí.
+      </p>
+
+      <div className="field">
+        <label htmlFor="datos-verificables">Dato verificable (años de experiencia, nº de clientes, un premio…)</label>
+        <textarea
+          id="datos-verificables"
+          rows={2}
+          value={datosVerificables}
+          onChange={(e) => setDatosVerificables(e.target.value)}
+          placeholder="Ej: 8 años de experiencia, más de 200 clientes en Madrid"
+        />
+      </div>
+
+      <div className="field">
+        <label htmlFor="tecnologias-marcas">Tecnologías, marcas o certificaciones propias</label>
+        <textarea
+          id="tecnologias-marcas"
+          rows={2}
+          value={tecnologiasMarcas}
+          onChange={(e) => setTecnologiasMarcas(e.target.value)}
+          placeholder="Ej: Certificación ISO 9001, maquinaria Bosch profesional"
+        />
+      </div>
+
+      <div className="field">
+        <label htmlFor="diferenciador">¿Qué te hace diferente de la competencia?</label>
+        <textarea
+          id="diferenciador"
+          rows={2}
+          value={diferenciador}
+          onChange={(e) => setDiferenciador(e.target.value)}
+          placeholder="Ej: Somos el único taller de la zona con servicio de recogida a domicilio"
+        />
       </div>
 
       {error && <p className="field-error">{error}</p>}
