@@ -65,6 +65,73 @@ export function PanelNeroxAnaliza() {
   const [error, setError] = useState<string | null>(null);
   const [panelAbierto, setPanelAbierto] = useState(true);
   const [copiadoId, setCopiadoId] = useState<string | null>(null);
+  const [editandoId, setEditandoId] = useState<string | null>(null);
+  const [borrador, setBorrador] = useState<Partial<Negocio>>({});
+  const [guardandoId, setGuardandoId] = useState<string | null>(null);
+  const [borrandoId, setBorrandoId] = useState<string | null>(null);
+
+  function empezarEdicion(n: Negocio) {
+    setEditandoId(n.id);
+    setBorrador({
+      nombreNegocio: n.nombreNegocio,
+      web: n.web,
+      telefono: n.telefono || "",
+      email: n.email || "",
+      whatsapp: n.whatsapp || "",
+      diagnostico: n.diagnostico,
+      accion: n.accion,
+      propuestaVenta: n.propuestaVenta || "",
+    });
+  }
+
+  function cancelarEdicion() {
+    setEditandoId(null);
+    setBorrador({});
+  }
+
+  async function guardarEdicion(id: string) {
+    setGuardandoId(id);
+    try {
+      const res = await fetch("/api/nerox-analiza/actualizar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id, ...borrador }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        setError(data?.error || "No se pudo guardar la edición.");
+      } else {
+        setNegocios((prev) => prev.map((n) => (n.id === id ? { ...n, ...borrador } as Negocio : n)));
+        setEditandoId(null);
+        setBorrador({});
+      }
+    } catch {
+      setError("No se pudo conectar con el servidor.");
+    }
+    setGuardandoId(null);
+  }
+
+  async function eliminarNegocio(id: string, nombre: string) {
+    if (!window.confirm(`¿Borrar "${nombre}" de los resultados? Esta acción no se puede deshacer.`)) return;
+    setBorrandoId(id);
+    try {
+      const res = await fetch("/api/nerox-analiza/eliminar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) {
+        setError(data?.error || "No se pudo borrar.");
+      } else {
+        setNegocios((prev) => prev.filter((n) => n.id !== id));
+        setResumen((prev) => (prev ? { ...prev, total: prev.total - 1 } : prev));
+      }
+    } catch {
+      setError("No se pudo conectar con el servidor.");
+    }
+    setBorrandoId(null);
+  }
 
   const [sector, setSector] = useState("dentista");
   const [ciudad, setCiudad] = useState("Madrid");
@@ -247,21 +314,137 @@ export function PanelNeroxAnaliza() {
         <div style={{ display: "flex", flexDirection: "column", gap: "0.75rem" }}>
           {negocios.map((n) => (
             <div key={n.id} className="na-card">
-              <div style={{ display: "flex", justifyContent: "space-between", width: "100%", alignItems: "center" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", width: "100%", alignItems: "center", gap: "0.5rem" }}>
                 <strong style={{ fontSize: "0.95rem" }}>{n.nombreNegocio}</strong>
-                <span
-                  style={{
-                    fontSize: "0.7rem",
-                    fontWeight: 700,
-                    color: "white",
-                    background: COLOR_STATUS[n.status],
-                    padding: "2px 10px",
-                    borderRadius: "999px",
-                  }}
-                >
-                  {n.status} · ICP {n.icp}
-                </span>
+                <div style={{ display: "flex", gap: "0.4rem", alignItems: "center", flexShrink: 0 }}>
+                  <span
+                    style={{
+                      fontSize: "0.7rem",
+                      fontWeight: 700,
+                      color: "white",
+                      background: COLOR_STATUS[n.status],
+                      padding: "2px 10px",
+                      borderRadius: "999px",
+                    }}
+                  >
+                    {n.status} · ICP {n.icp}
+                  </span>
+                  {editandoId !== n.id && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => empezarEdicion(n)}
+                        title="Editar"
+                        style={{ background: "none", border: "none", cursor: "pointer", fontSize: "0.95rem" }}
+                      >
+                        ✏️
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => eliminarNegocio(n.id, n.nombreNegocio)}
+                        disabled={borrandoId === n.id}
+                        title="Borrar"
+                        style={{ background: "none", border: "none", cursor: "pointer", fontSize: "0.95rem" }}
+                      >
+                        {borrandoId === n.id ? "…" : "🗑️"}
+                      </button>
+                    </>
+                  )}
+                </div>
               </div>
+
+              {editandoId === n.id ? (
+                <div style={{ display: "flex", flexDirection: "column", gap: "0.5rem", marginTop: "0.6rem" }}>
+                  <label style={{ fontSize: "0.75rem", color: "var(--color-text-muted)" }}>
+                    Nombre
+                    <input
+                      className="na-input"
+                      style={{ width: "100%", marginTop: 2 }}
+                      value={borrador.nombreNegocio || ""}
+                      onChange={(e) => setBorrador((b) => ({ ...b, nombreNegocio: e.target.value }))}
+                    />
+                  </label>
+                  <label style={{ fontSize: "0.75rem", color: "var(--color-text-muted)" }}>
+                    Web
+                    <input
+                      className="na-input"
+                      style={{ width: "100%", marginTop: 2 }}
+                      value={borrador.web || ""}
+                      onChange={(e) => setBorrador((b) => ({ ...b, web: e.target.value }))}
+                    />
+                  </label>
+                  <div style={{ display: "flex", gap: "0.5rem" }}>
+                    <label style={{ fontSize: "0.75rem", color: "var(--color-text-muted)", flex: 1 }}>
+                      Teléfono
+                      <input
+                        className="na-input"
+                        style={{ width: "100%", marginTop: 2 }}
+                        value={borrador.telefono || ""}
+                        onChange={(e) => setBorrador((b) => ({ ...b, telefono: e.target.value }))}
+                      />
+                    </label>
+                    <label style={{ fontSize: "0.75rem", color: "var(--color-text-muted)", flex: 1 }}>
+                      Email
+                      <input
+                        className="na-input"
+                        style={{ width: "100%", marginTop: 2 }}
+                        value={borrador.email || ""}
+                        onChange={(e) => setBorrador((b) => ({ ...b, email: e.target.value }))}
+                      />
+                    </label>
+                  </div>
+                  <label style={{ fontSize: "0.75rem", color: "var(--color-text-muted)" }}>
+                    Diagnóstico
+                    <textarea
+                      className="na-input"
+                      style={{ width: "100%", marginTop: 2 }}
+                      rows={2}
+                      value={borrador.diagnostico || ""}
+                      onChange={(e) => setBorrador((b) => ({ ...b, diagnostico: e.target.value }))}
+                    />
+                  </label>
+                  <label style={{ fontSize: "0.75rem", color: "var(--color-text-muted)" }}>
+                    Acción recomendada
+                    <input
+                      className="na-input"
+                      style={{ width: "100%", marginTop: 2 }}
+                      value={borrador.accion || ""}
+                      onChange={(e) => setBorrador((b) => ({ ...b, accion: e.target.value }))}
+                    />
+                  </label>
+                  <label style={{ fontSize: "0.75rem", color: "var(--color-text-muted)" }}>
+                    Propuesta de primer contacto
+                    <textarea
+                      className="na-input"
+                      style={{ width: "100%", marginTop: 2 }}
+                      rows={3}
+                      value={borrador.propuestaVenta || ""}
+                      onChange={(e) => setBorrador((b) => ({ ...b, propuestaVenta: e.target.value }))}
+                    />
+                  </label>
+                  <div style={{ display: "flex", gap: "0.5rem" }}>
+                    <button
+                      type="button"
+                      className="btn-primary"
+                      style={{ fontSize: "0.8rem", padding: "5px 12px" }}
+                      onClick={() => guardarEdicion(n.id)}
+                      disabled={guardandoId === n.id}
+                    >
+                      {guardandoId === n.id ? "Guardando…" : "💾 Guardar"}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      style={{ fontSize: "0.8rem", padding: "5px 12px" }}
+                      onClick={cancelarEdicion}
+                      disabled={guardandoId === n.id}
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
               <div style={{ fontSize: "0.8rem", color: "var(--color-text-muted)", margin: "0.3rem 0 0.5rem" }}>
                 {n.sector} · {n.ciudad} {n.web ? `· ${n.web}` : "· sin web detectada"}
               </div>
@@ -372,6 +555,8 @@ export function PanelNeroxAnaliza() {
               <div style={{ fontSize: "0.75rem", color: n.usadoEnPublicacion ? "var(--color-success)" : "var(--color-text-muted)" }}>
                 {n.usadoEnPublicacion ? "✅ Ya convertido en publicación" : "⏳ Pendiente de usar en contenido"}
               </div>
+                </>
+              )}
             </div>
           ))}
         </div>
