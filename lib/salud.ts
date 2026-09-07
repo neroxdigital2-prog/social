@@ -228,3 +228,59 @@ export async function enviarAlertaWhatsAppPlantilla(conProblemas: number, total:
     return { intentado: true, ok: false, detalle: err instanceof Error ? err.message : String(err) };
   }
 }
+
+/**
+ * Avisa por WhatsApp al numero de alertas cuando llega un mensaje nuevo de un
+ * cliente al bot de WhatsApp Business. El numero de negocio (614988630) solo
+ * funciona via API (sin app de WhatsApp instalada), asi que sin esto los
+ * mensajes solo se ven dentro de la pantalla /whatsapp de la app - esto
+ * manda una notificacion real al movil via WhatsApp normal.
+ *
+ * Usa plantilla aprobada (no texto libre) para no depender de la ventana de
+ * 24h de conversacion, igual que las alertas de salud.
+ */
+export async function enviarAlertaNuevoMensajeWhatsApp(nombreContacto: string, nombreEmpresa: string, textoMensaje: string): Promise<ResultadoEnvioWhatsApp> {
+  if (!WHATSAPP_ACCESS_TOKEN || !WHATSAPP_PHONE_NUMBER_ID) {
+    return {
+      intentado: false,
+      ok: false,
+      detalle: `Faltan variables de entorno: ${!WHATSAPP_ACCESS_TOKEN ? "WHATSAPP_ACCESS_TOKEN " : ""}${!WHATSAPP_PHONE_NUMBER_ID ? "WHATSAPP_PHONE_NUMBER_ID" : ""}`.trim(),
+    };
+  }
+  // Las variables de plantilla de WhatsApp no admiten saltos de linea ni
+  // exceder cierta longitud - se limpia y se recorta el mensaje del cliente.
+  const textoLimpio = textoMensaje.replace(/[\n\r]+/g, " ").slice(0, 300);
+
+  try {
+    const res = await fetch(`https://graph.facebook.com/${WHATSAPP_API_VERSION}/${WHATSAPP_PHONE_NUMBER_ID}/messages`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Authorization: `Bearer ${WHATSAPP_ACCESS_TOKEN}` },
+      body: JSON.stringify({
+        messaging_product: "whatsapp",
+        to: WHATSAPP_ALERTA_NUMERO,
+        type: "template",
+        template: {
+          name: "nerox_nuevo_mensaje_whatsapp",
+          language: { code: "es" },
+          components: [
+            {
+              type: "body",
+              parameters: [
+                { type: "text", text: nombreContacto || "Cliente" },
+                { type: "text", text: nombreEmpresa },
+                { type: "text", text: textoLimpio },
+              ],
+            },
+          ],
+        },
+      }),
+    });
+    const texto = await res.text();
+    if (!res.ok) {
+      return { intentado: true, ok: false, detalle: `Meta respondió ${res.status}: ${texto.slice(0, 300)}` };
+    }
+    return { intentado: true, ok: true, detalle: texto.slice(0, 300) };
+  } catch (err) {
+    return { intentado: true, ok: false, detalle: err instanceof Error ? err.message : String(err) };
+  }
+}

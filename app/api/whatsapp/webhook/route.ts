@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { generarRespuestaChat } from "@/lib/generadorTexto";
+import { enviarAlertaNuevoMensajeWhatsApp } from "@/lib/salud";
 
 export const maxDuration = 60;
 
@@ -143,6 +144,7 @@ export async function POST(req: NextRequest) {
         nombreContacto,
         mensajesNuevos: [{ rol: "USUARIO", contenido: textoUsuario }],
       });
+      enviarAlertaNuevoMensajeWhatsApp(nombreContacto || telefono, empresa.nombre, textoUsuario).catch(() => {});
       return NextResponse.json({ ok: true });
     }
 
@@ -178,6 +180,7 @@ Responde solo con el mensaje que le enviarías por WhatsApp, sin comillas ni eti
         { rol: "BOT", contenido: respuestaIA },
       ],
     });
+    enviarAlertaNuevoMensajeWhatsApp(nombreContacto || telefono, empresa.nombre, textoUsuario).catch(() => {});
 
     return NextResponse.json({ ok: true });
   } catch (error) {
