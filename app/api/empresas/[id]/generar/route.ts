@@ -8,7 +8,7 @@ export const maxDuration = 60;
 
 const BodySchema = z.object({
   cantidad: z.number().min(1).max(10).default(10),
-  tema: z.string().max(300).optional(),
+  tema: z.string().trim().max(500).optional(),
 });
 
 const BRIDGE_SECRET = process.env.BRIDGE_SECRET!;
@@ -16,7 +16,6 @@ const BRIDGE_ACCESO = process.env.IONOS_BRIDGE_URL_EMPRESA_ACCESO!;
 const BRIDGE_CONTAR = process.env.IONOS_BRIDGE_URL_PUBLICACIONES_CONTAR!;
 const BRIDGE_CREAR = process.env.IONOS_BRIDGE_URL_PUBLICACIONES_CREAR!;
 const BRIDGE_CONFIG_LISTAR = process.env.IONOS_BRIDGE_URL_CONFIG_API_LISTAR!;
-const BRIDGE_TENDENCIA = process.env.IONOS_BRIDGE_URL_TENDENCIA_RECIENTE!;
 
 const LIMITES_PLAN: Record<string, number> = {
   GRATIS: 5,
@@ -35,7 +34,7 @@ async function bridgeFetch(url: string, body: unknown) {
   try {
     data = JSON.parse(textoCrudo);
   } catch {
-    data = { error: "Respuesta no es JSON válido" };
+    data = { error: "Respuesta no es JSON válido", crudo: textoCrudo };
   }
   return { ok: res.ok, status: res.status, data };
 }
@@ -94,19 +93,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const claves = {
     gemini: clavesGuardadas.find((c) => c.proveedor === "GEMINI")?.apiKey,
     groq: clavesGuardadas.find((c) => c.proveedor === "GROQ")?.apiKey,
-    cerebras: clavesGuardadas.find((c) => c.proveedor === "CEREBRAS")?.apiKey,
-    openrouter: clavesGuardadas.find((c) => c.proveedor === "OPENROUTER")?.apiKey,
   };
-
-  // Tendencia del dia (Radar de Tendencias). Si falla o no hay ninguna
-  // guardada todavia, simplemente seguimos sin ese contexto extra.
-  let tendenciaActual: string | undefined;
-  if (BRIDGE_TENDENCIA) {
-    const tendenciaRes = await bridgeFetch(BRIDGE_TENDENCIA, {});
-    if (tendenciaRes.ok && tendenciaRes.data?.found) {
-      tendenciaActual = tendenciaRes.data.tendencia?.resumen;
-    }
-  }
 
   try {
     const generadas = await generarPublicaciones(
@@ -117,21 +104,16 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
         servicios: empresa.servicios as string[],
         web: empresa.web,
         whatsapp: empresa.whatsapp,
-        datosVerificables: empresa.datosVerificables,
-        tecnologiasMarcas: empresa.tecnologiasMarcas,
-        diferenciador: empresa.diferenciador,
       },
       cantidad,
       claves,
-      tema,
-      tendenciaActual
+      tema
     );
 
     const crear = await bridgeFetch(BRIDGE_CREAR, { empresaId: empresa.id, publicaciones: generadas });
 
     if (!crear.ok) {
-      console.error("Fallo al guardar publicaciones:", crear.data);
-      return NextResponse.json({ error: "Fallo al guardar publicaciones" }, { status: 502 });
+      return NextResponse.json({ error: "Fallo al guardar publicaciones", detalle: crear.data }, { status: 502 });
     }
 
     return NextResponse.json(crear.data, { status: 201 });
