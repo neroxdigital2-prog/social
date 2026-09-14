@@ -8,12 +8,16 @@ export interface PerfilEmpresa {
   servicios: string[];
   web?: string | null;
   whatsapp?: string | null;
+  datosVerificables?: string | null;
+  tecnologiasMarcas?: string | null;
+  diferenciador?: string | null;
 }
 
 export interface PublicacionGenerada {
   tipo: TipoPublicacion;
   titulo: string;
   texto: string;
+  altText: string;
   hashtags: string[];
   imagenPrompt: string;
 }
@@ -21,7 +25,24 @@ export interface PublicacionGenerada {
 export interface ClavesApi {
   gemini?: string;
   groq?: string;
+  cerebras?: string;
+  openrouter?: string;
 }
+
+const PILAR_POR_TIPO: Record<string, { pilar: string; enfoqueSeo: string; formula: string }> = {
+  INFORMATIVA:         { pilar: "ATRAER",    enfoqueSeo: "gancho fuerte en el primer segundo, keyword de problema/dolor del cliente, hashtags de alcance amplio dentro del nicho", formula: "GANCHO → PROBLEMA → SOLUCIÓN → BENEFICIO → CTA" },
+  CONSEJO:             { pilar: "EDUCAR",    enfoqueSeo: "keyword de 'como hacer X', formato lista/pasos que invite a guardar. RESPUESTA PRIMERO: da el consejo clave en la primera frase, luego desarrolla el porque/como.", formula: "RESPUESTA DIRECTA → PROBLEMA → CONSEJOS → SOLUCIÓN → CTA" },
+  CASO_EXITO:          { pilar: "CONFIANZA", enfoqueSeo: "keyword de resultado medible (numeros, porcentajes), hashtags de prueba social", formula: "ANTES → PROBLEMA → SOLUCIÓN NEROX → RESULTADO → CTA" },
+  ANTES_DESPUES:       { pilar: "CONFIANZA", enfoqueSeo: "keyword de transformacion, contraste antes/despues explicito en el texto", formula: "ANTES → PROBLEMA → SOLUCIÓN NEROX → RESULTADO → CTA" },
+  PROMOCION:           { pilar: "CONVERTIR", enfoqueSeo: "keyword de servicio + ciudad, CTA directo y urgente", formula: "GANCHO → PROBLEMA → SOLUCIÓN → BENEFICIO → CTA" },
+  PREGUNTA_FRECUENTE:  { pilar: "EDUCAR",    enfoqueSeo: "keyword en formato pregunta literal (asi la gente busca), responde en el propio texto", formula: "PROBLEMA → CONSEJOS → SOLUCIÓN → CTA" },
+  NOTICIA_SECTOR:      { pilar: "ATRAER",    enfoqueSeo: "keyword de tendencia/actualidad del sector, hashtags de novedad", formula: "GANCHO → PROBLEMA → SOLUCIÓN → BENEFICIO → CTA" },
+  CURIOSIDAD:          { pilar: "ATRAER",    enfoqueSeo: "keyword de dato sorprendente, maximiza guardados y compartidos", formula: "GANCHO → PROBLEMA → SOLUCIÓN → BENEFICIO → CTA" },
+  MITO_REALIDAD:       { pilar: "EDUCAR",    enfoqueSeo: "keyword del mito mas comun del sector, formato mito vs realidad. RESPUESTA PRIMERO: declara la realidad (la verdad) en la primera frase, luego contrasta con el mito.", formula: "REALIDAD DIRECTA → MITO COMUN → POR QUE ES FALSO → SOLUCIÓN → CTA" },
+  TESTIMONIO:          { pilar: "CONFIANZA", enfoqueSeo: "keyword de experiencia de cliente real, tono cercano", formula: "ANTES → PROBLEMA → SOLUCIÓN NEROX → RESULTADO → CTA" },
+  ENCUESTA:            { pilar: "DEMOSTRAR", enfoqueSeo: "keyword de decision/comparacion, fomenta comentarios", formula: "PROBLEMA → NEROX FUNCIONANDO → RESULTADO → CTA" },
+  LLAMADA_ACCION:      { pilar: "CONVERTIR", enfoqueSeo: "keyword de servicio + ciudad, CTA muy directo (escribe/llama/agenda ya)", formula: "GANCHO → PROBLEMA → SOLUCIÓN → BENEFICIO → CTA" },
+};
 
 const TIPOS_ROTACION: TipoPublicacion[] = [
   "INFORMATIVA", "CONSEJO", "CASO_EXITO", "ANTES_DESPUES", "PROMOCION",
@@ -35,14 +56,33 @@ function elegirTipos(cantidad: number): TipoPublicacion[] {
   return tipos;
 }
 
-function construirPrompts(perfil: PerfilEmpresa, cantidad: number, tema?: string) {
+function construirPrompts(perfil: PerfilEmpresa, cantidad: number, tema?: string, tendenciaActual?: string) {
   const tipos = elegirTipos(cantidad);
 
-  const systemPrompt = `Eres un director de marketing digital experto en redes sociales para pequeñas y medianas empresas locales. Escribes en español, con tono cercano y profesional, adaptado al sector del negocio. Nunca inventas datos falsos sobre la empresa; usas solo la información proporcionada.`;
+  const systemPrompt = `Eres un director de marketing digital experto en redes sociales para pequeñas y medianas empresas locales, con dominio de SEO para Instagram/Meta. Escribes en español, con tono cercano y profesional, adaptado al sector del negocio. Nunca inventas datos falsos sobre la empresa; usas solo la información proporcionada.
 
-  const instruccionTema = tema?.trim()
-    ? `\nInstrucción específica del usuario (PRIORIDAD MÁXIMA, todas las publicaciones deben girar en torno a esto): ${tema.trim()}\n`
-    : "";
+REGLAS SEO OBLIGATORIAS para cada publicación:
+1. La keyword principal (sector o servicio del negocio) debe aparecer dentro de los primeros 125 caracteres del "texto" — Instagram solo indexa y muestra esa parte antes de "ver más".
+2. La primera línea del "texto" debe ser un gancho corto que incluya esa keyword de forma natural, no un emoji suelto.
+3. "altText" debe describir la imagen de forma literal (qué se ve) e incluir la keyword principal de forma natural — se usa para accesibilidad y para que Instagram indexe la imagen. Máximo 100 caracteres.
+4. "hashtags" deben ser 3-5 hashtags de nicho (long-tail, específicos del sector+ciudad, ej. #disenowebmadrid en vez de #disenoweb) más 1 hashtag de marca fijo: #${(perfil.nombre || "nerox").toLowerCase().replace(/[^a-z0-9]/g, "")}. Nunca hashtags genéricos masivos (#instagood, #viral, #love).
+5. Si la empresa tiene ciudad definida, menciona esa ciudad de forma natural dentro del "texto" (ej. "en ${perfil.ciudad}", "para negocios en ${perfil.ciudad}") para reforzar el SEO local.
+
+REGLAS GEO (Generative Engine Optimization) OBLIGATORIAS — para que este contenido también funcione bien cuando alguien le pregunta a ChatGPT/Gemini/Perplexity sobre este sector o negocio, no solo cuando lo busca en Google/Instagram:
+6. Especificidad verificable (Information Gain): evita superlativos genéricos y vacíos ("los mejores", "resultados garantizados", "líderes del sector"). En su lugar, usa datos concretos y verificables que SÍ tengas (años de experiencia, número de clientes, un servicio exacto, un beneficio medible). Si no hay un dato real disponible, describe el mecanismo concreto del servicio en vez de inflar con adjetivos.
+7. Anclaje de entidad: nombra el servicio o tecnología exacta por su nombre real (ej. "diseño con Webflow", "agenda automática por WhatsApp") en vez de términos genéricos ("nuestros servicios", "soluciones digitales") — esto asocia semánticamente el negocio con esa entidad concreta.
+8. Autoridad con empatía: estructura el argumento como problema → mecanismo → resultado, con tono seguro pero cercano, nunca agresivo ni de venta forzada. Un argumento lógico claro convence más (a personas y a IA que resumen contenido) que solo adjetivos persuasivos.
+9. GUARDARRAÍL ANTI-INVENCIÓN: la regla 6 (especificidad verificable) NUNCA autoriza inventar una cifra, año, número de clientes o dato que no te haya sido dado explícitamente. Si no hay un "Dato verificable" en la información de la empresa (más abajo), describe el mecanismo concreto del servicio en su lugar — jamás rellenes con un número inventado para sonar más específico.
+
+ANTES DE ESCRIBIR CADA PUBLICACIÓN, responde internamente estas 6 preguntas y que el texto refleje esas respuestas (no las escribas literalmente, úsalas para guiar el contenido):
+1. ¿A quién le hablamos? (empresario, autónomo, comercio local, etc.)
+2. ¿Qué problema tiene esa persona?
+3. ¿Qué le enseñamos o mostramos?
+4. ¿Cómo lo solucionamos (con qué servicio de Nerox)?
+5. ¿Qué beneficio concreto obtiene?
+6. ¿Qué queremos que haga después de leer/ver esto? (esto define el CTA)
+
+Cada tipo de publicación tiene ademas una FÓRMULA MAESTRA de estructura obligatoria que debes seguir al escribir el "texto" (ver la lista de tipos más abajo).`;
 
   const userPrompt = `Genera ${cantidad} publicaciones para redes sociales de esta empresa:
 
@@ -52,17 +92,21 @@ Ciudad: ${perfil.ciudad}
 Servicios: ${perfil.servicios.join(", ") || "no especificados"}
 Web: ${perfil.web || "no disponible"}
 WhatsApp: ${perfil.whatsapp || "no disponible"}
-${instruccionTema}
-Tipos de publicación requeridos en este orden exacto: ${tipos.join(", ")}.
+${perfil.datosVerificables ? `Dato verificable (usar SOLO esto para la regla de especificidad, nunca inventar otro): ${perfil.datosVerificables}\n` : ""}${perfil.tecnologiasMarcas ? `Tecnologías/marcas/certificaciones propias (usar el nombre exacto para el anclaje de entidad): ${perfil.tecnologiasMarcas}\n` : ""}${perfil.diferenciador ? `Diferenciador frente a la competencia (usar para reforzar el anclaje de entidad, sin exagerar): ${perfil.diferenciador}\n` : ""}
+${tema ? `\nTema o instrucción específica para estas publicaciones (síguela con prioridad, adaptando cada tipo de publicación a este tema): ${tema}\n` : ""}
+${tendenciaActual ? `\nCONTEXTO DE TENDENCIAS ACTUALES (investigado hoy por el Radar de Tendencias de Nerox, tenlo en cuenta para ajustar el enfoque si es relevante, sin forzarlo si no aplica a este negocio): ${tendenciaActual}\n` : ""}
+Tipos de publicación requeridos en este orden exacto, con su pilar de embudo (ATRAER→EDUCAR→DEMOSTRAR→CONFIANZA→CONVERTIR), su enfoque SEO y su FÓRMULA MAESTRA de estructura obligatoria:
+${tipos.map((t) => `- ${t} [pilar: ${PILAR_POR_TIPO[t]?.pilar ?? "ATRAER"}] → SEO: ${PILAR_POR_TIPO[t]?.enfoqueSeo ?? "keyword del sector en el gancho inicial"} → ESTRUCTURA: ${PILAR_POR_TIPO[t]?.formula ?? "GANCHO → PROBLEMA → SOLUCIÓN → BENEFICIO → CTA"}`).join("\n")}
 
-Para cada publicación entrega:
+Para cada publicación entrega, aplicando siempre las REGLAS SEO y GEO del system prompt Y el enfoque SEO específico de su pilar:
 - titulo: máximo 8 palabras
-- texto: entre 40 y 90 palabras, listo para publicar
-- hashtags: 5 hashtags relevantes en español, sin espacios
+- texto: entre 40 y 90 palabras, listo para publicar, keyword en los primeros 125 caracteres
+- altText: descripción literal de la imagen con la keyword, máximo 100 caracteres
+- hashtags: 3-5 hashtags de nicho long-tail + 1 hashtag de marca, sin espacios
 - imagenPrompt: descripción en inglés para generar una imagen con IA que acompañe la publicación
 
 Responde ÚNICAMENTE con un JSON válido con esta forma exacta:
-{"publicaciones": [{"tipo": "TIPO", "titulo": "...", "texto": "...", "hashtags": ["...","..."], "imagenPrompt": "..."}]}`;
+{"publicaciones": [{"tipo": "TIPO", "titulo": "...", "texto": "...", "altText": "...", "hashtags": ["...","..."], "imagenPrompt": "..."}]}`;
 
   return { systemPrompt, userPrompt };
 }
@@ -102,9 +146,11 @@ async function generarConGroq(systemPrompt: string, userPrompt: string, apiKey: 
         Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({
-        model: "llama-3.3-70b-versatile",
+        model: "openai/gpt-oss-120b",
         response_format: { type: "json_object" },
         temperature: 0.8,
+        reasoning_effort: "low",
+        max_tokens: 4000,
         messages: [
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
@@ -123,31 +169,107 @@ async function generarConGroq(systemPrompt: string, userPrompt: string, apiKey: 
   return contenido;
 }
 
+async function generarConCerebras(systemPrompt: string, userPrompt: string, apiKey: string): Promise<string> {
+  const respuesta = await conRetry(async () => {
+    const res = await fetch("https://api.cerebras.ai/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: JSON.stringify({
+        model: "llama-3.3-70b",
+        response_format: { type: "json_object" },
+        temperature: 0.8,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
+      }),
+    });
+    if (!res.ok) {
+      const errorBody = await res.text();
+      throw new Error(`Cerebras API error ${res.status}: ${errorBody}`);
+    }
+    return res.json();
+  });
+
+  const contenido = respuesta?.choices?.[0]?.message?.content;
+  if (!contenido) throw new Error("Cerebras no devolvió contenido");
+  return contenido;
+}
+
+async function generarConOpenRouter(systemPrompt: string, userPrompt: string, apiKey: string): Promise<string> {
+  const respuesta = await conRetry(async () => {
+    const res = await fetch("https://openrouter.ai/api/v1/chat/completions", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${apiKey}`,
+        "HTTP-Referer": "https://social.nerox.es",
+        "X-Title": "Nerox Social IA",
+      },
+      body: JSON.stringify({
+        model: "openrouter/free",
+        response_format: { type: "json_object" },
+        temperature: 0.8,
+        messages: [
+          { role: "system", content: systemPrompt },
+          { role: "user", content: userPrompt },
+        ],
+      }),
+    });
+    if (!res.ok) {
+      const errorBody = await res.text();
+      throw new Error(`OpenRouter API error ${res.status}: ${errorBody}`);
+    }
+    return res.json();
+  });
+
+  const contenido = respuesta?.choices?.[0]?.message?.content;
+  if (!contenido) throw new Error("OpenRouter no devolvió contenido");
+  return contenido;
+}
+
 export async function generarPublicaciones(
   perfil: PerfilEmpresa,
   cantidad: number,
   claves: ClavesApi = {},
-  tema?: string
+  tema?: string,
+  tendenciaActual?: string
 ): Promise<PublicacionGenerada[]> {
-  const { systemPrompt, userPrompt } = construirPrompts(perfil, cantidad, tema);
+  const { systemPrompt, userPrompt } = construirPrompts(perfil, cantidad, tema, tendenciaActual);
 
-  const geminiKey = claves.gemini || process.env.GEMINI_API_KEY!;
+  const geminiKey = claves.gemini || process.env.GEMINI_API_KEY;
   const groqKey = claves.groq || process.env.GROQ_API_KEY;
+  const cerebrasKey = claves.cerebras || process.env.CEREBRAS_API_KEY;
+  const openrouterKey = claves.openrouter || process.env.OPENROUTER_API_KEY;
 
-  let contenido: string;
+  const pasos: Array<{ nombre: string; key?: string; fn: (s: string, u: string, k: string) => Promise<string> }> = [
+    { nombre: "Gemini", key: geminiKey, fn: generarConGemini },
+    { nombre: "Groq", key: groqKey, fn: generarConGroq },
+    { nombre: "Cerebras", key: cerebrasKey, fn: generarConCerebras },
+    { nombre: "OpenRouter", key: openrouterKey, fn: generarConOpenRouter },
+  ];
 
-  try {
-    contenido = await generarConGemini(systemPrompt, userPrompt, geminiKey);
-  } catch (errorGemini) {
-    console.error("Fallo Gemini, probando con Groq:", errorGemini);
+  let contenido: string | null = null;
+  let ultimoError: unknown = null;
 
-    if (!groqKey) {
-      throw errorGemini;
+  for (const paso of pasos) {
+    if (!paso.key) continue;
+    try {
+      contenido = await paso.fn(systemPrompt, userPrompt, paso.key);
+      break;
+    } catch (error) {
+      console.error(`Fallo ${paso.nombre}, probando siguiente proveedor:`, error);
+      ultimoError = error;
     }
+  }
 
-    contenido = await generarConGroq(systemPrompt, userPrompt, groqKey);
+  if (!contenido) {
+    throw ultimoError ?? new Error("No hay ninguna clave de API configurada (Gemini, Groq, Cerebras u OpenRouter)");
   }
 
   const parsed = JSON.parse(contenido) as { publicaciones: PublicacionGenerada[] };
-  return parsed.publicaciones;
+  return (parsed.publicaciones || []).slice(0, cantidad);
 }
