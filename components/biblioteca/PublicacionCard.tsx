@@ -2,6 +2,8 @@
 
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { PexelsImagePicker } from "@/components/shared/PexelsImagePicker";
+import type { FotoPexels } from "@/lib/pexels";
 
 interface ResultadoRed {
   red: string;
@@ -45,6 +47,8 @@ export function PublicacionCard({ publicacion }: { publicacion: Publicacion }) {
   const [generando, setGenerando] = useState(false);
   const [subiendo, setSubiendo] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [mostrarPexels, setMostrarPexels] = useState(false);
+  const [guardandoPexels, setGuardandoPexels] = useState(false);
 
   const [editando, setEditando] = useState(false);
   const [titulo, setTitulo] = useState(publicacion.titulo);
@@ -120,6 +124,27 @@ export function PublicacionCard({ publicacion }: { publicacion: Publicacion }) {
       setSubiendo(false);
       setError("Error al procesar la imagen.");
     }
+  }
+
+  async function elegirFotoPexels(foto: FotoPexels) {
+    setGuardandoPexels(true);
+    setError(null);
+
+    const res = await fetch(`/api/publicaciones/${publicacion.id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ imagenUrl: foto.src.grande }),
+    });
+    const data = await res.json().catch(() => ({}));
+    setGuardandoPexels(false);
+
+    if (!res.ok) {
+      setError(data?.error || "No se pudo guardar la imagen de Pexels.");
+      return;
+    }
+
+    setImagenUrl(foto.src.grande);
+    setMostrarPexels(false);
   }
 
   async function quitarImagen() {
@@ -252,6 +277,9 @@ export function PublicacionCard({ publicacion }: { publicacion: Publicacion }) {
             <button type="button" onClick={quitarImagen} disabled={subiendo} className="pub-btn-link pub-btn-danger">
               Quitar imagen
             </button>
+            <button type="button" onClick={() => setMostrarPexels((v) => !v)} className="pub-btn-link">
+              {mostrarPexels ? "Cerrar Pexels" : "Buscar en Pexels"}
+            </button>
           </div>
           <input
             ref={inputArchivoRef}
@@ -274,12 +302,26 @@ export function PublicacionCard({ publicacion }: { publicacion: Publicacion }) {
           >
             {subiendo ? "Subiendo…" : "Subir mi imagen"}
           </button>
+          <button type="button" onClick={() => setMostrarPexels((v) => !v)} className="btn-generar-imagen">
+            {mostrarPexels ? "Cerrar Pexels" : "Buscar en Pexels"}
+          </button>
           <input
             ref={inputArchivoRef}
             type="file"
             accept="image/png,image/jpeg,image/webp"
             style={{ display: "none" }}
             onChange={subirImagenManual}
+          />
+        </div>
+      )}
+
+      {mostrarPexels && (
+        <div style={{ marginTop: "0.6rem" }}>
+          {guardandoPexels && <p className="text-muted" style={{ fontSize: "0.8rem" }}>Guardando imagen…</p>}
+          <PexelsImagePicker
+            terminoInicial={publicacion.imagenPrompt?.split(" ").slice(0, 4).join(" ") || ""}
+            onSeleccionar={elegirFotoPexels}
+            onCerrar={() => setMostrarPexels(false)}
           />
         </div>
       )}
