@@ -1,4 +1,5 @@
 import { conRetry } from "@/lib/conRetry";
+import { FORMATO_BIBLIOTECA, normalizarA916 } from "@/lib/imagenFormato";
 
 export interface ClavesImagen {
   gemini?: string;
@@ -19,6 +20,10 @@ async function generarConGeminiImagen(prompt: string, apiKey: string): Promise<s
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         contents: [{ parts: [{ text: prompt }] }],
+        generationConfig: {
+          responseModalities: ["IMAGE"],
+          imageConfig: { aspectRatio: FORMATO_BIBLIOTECA.ratio },
+        },
       }),
     });
     if (!res.ok) {
@@ -38,8 +43,9 @@ async function generarConGeminiImagen(prompt: string, apiKey: string): Promise<s
     throw new Error("Gemini no devolvió una imagen");
   }
 
-  const mime = parteImagen.inlineData.mimeType || "image/png";
-  return `data:${mime};base64,${parteImagen.inlineData.data}`;
+  // Gemini devuelve 9:16 a menor resolución: se escala a 1080x1920 exactos.
+  const normalizada = await normalizarA916(Buffer.from(parteImagen.inlineData.data, "base64"));
+  return `data:image/jpeg;base64,${normalizada.toString("base64")}`;
 }
 
 // Pollinations.ai: sin API key, sin registro, sin límite práctico (modelo Flux).
@@ -49,11 +55,11 @@ async function generarConGeminiImagen(prompt: string, apiKey: string): Promise<s
 function generarConPollinations(prompt: string): string {
   const promptCodificado = encodeURIComponent(prompt);
   const semilla = Math.floor(Math.random() * 1_000_000);
-  return `https://image.pollinations.ai/prompt/${promptCodificado}?width=1024&height=1024&nologo=true&seed=${semilla}`;
+  return `https://image.pollinations.ai/prompt/${promptCodificado}?width=${FORMATO_BIBLIOTECA.ancho}&height=${FORMATO_BIBLIOTECA.alto}&nologo=true&seed=${semilla}`;
 }
 
 export async function generarImagen(prompt: string, claves: ClavesImagen = {}): Promise<string> {
-  const promptCompleto = `${prompt}. Estilo fotográfico profesional, alta calidad, apto para redes sociales, sin texto superpuesto.`;
+  const promptCompleto = `${prompt}. Estilo fotográfico profesional, alta calidad, apto para redes sociales, sin texto superpuesto. Composición vertical 9:16 (1080x1920), sujeto principal centrado con margen arriba y abajo.`;
   const geminiKey = claves.gemini || process.env.GEMINI_API_KEY;
 
   if (geminiKey) {

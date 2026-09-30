@@ -13,6 +13,7 @@ export interface FotoPexels {
     grande: string;
     mediana: string;
     miniatura: string;
+    vertical: string; // 1080x1920 recortada (9:16) para la Biblioteca
   };
 }
 
@@ -35,6 +36,7 @@ export async function buscarFotosPexels(
   url.searchParams.set("page", String(pagina));
   url.searchParams.set("per_page", String(Math.min(porPagina, 80)));
   url.searchParams.set("locale", "es-ES");
+  url.searchParams.set("orientation", "portrait");
 
   const res = await fetch(url.toString(), {
     headers: { Authorization: PEXELS_API_KEY },
@@ -59,6 +61,7 @@ export async function buscarFotosPexels(
       grande: p.src.large,
       mediana: p.src.medium,
       miniatura: p.src.tiny,
+      vertical: `${p.src.original}?auto=compress&cs=tinysrgb&fit=crop&w=1080&h=1920`,
     },
   }));
 

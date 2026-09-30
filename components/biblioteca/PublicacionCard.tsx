@@ -133,7 +133,7 @@ export function PublicacionCard({ publicacion }: { publicacion: Publicacion }) {
     const res = await fetch(`/api/publicaciones/${publicacion.id}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ imagenUrl: foto.src.grande }),
+      body: JSON.stringify({ imagenUrl: foto.src.vertical }),
     });
     const data = await res.json().catch(() => ({}));
     setGuardandoPexels(false);
@@ -143,7 +143,7 @@ export function PublicacionCard({ publicacion }: { publicacion: Publicacion }) {
       return;
     }
 
-    setImagenUrl(foto.src.grande);
+    setImagenUrl(foto.src.vertical);
     setMostrarPexels(false);
   }
 

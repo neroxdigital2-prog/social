@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import crypto from "crypto";
 import { waitUntil } from "@vercel/functions";
+import { descargarImagen, necesitaRecorteFeedInstagram, recortarParaFeedInstagram, subirBufferAlBridge } from "@/lib/imagenFormato";
 
 export const maxDuration = 60;
 
@@ -110,7 +111,19 @@ async function publicarEnInstagram(igId: string, token: string, texto: string, i
     return { error: "Instagram requiere una imagen; esta publicación no tenía ninguna generada." };
   }
 
-  const paramsCrear = new URLSearchParams({ image_url: imagenUrl, caption: texto, access_token: token });
+  // La Biblioteca guarda 9:16 (1080x1920), pero el feed de Instagram solo acepta 4:5–1.91:1.
+  // Se publica una copia 4:5 (1080x1350) recortada automáticamente; la original no se toca.
+  let urlParaInstagram = imagenUrl;
+  try {
+    const original = await descargarImagen(imagenUrl);
+    if (await necesitaRecorteFeedInstagram(original)) {
+      urlParaInstagram = await subirBufferAlBridge(await recortarParaFeedInstagram(original));
+    }
+  } catch (err) {
+    return { error: `No se pudo preparar la versión 4:5 para Instagram: ${err instanceof Error ? err.message : "error desconocido"}` };
+  }
+
+  const paramsCrear = new URLSearchParams({ image_url: urlParaInstagram, caption: texto, access_token: token });
   // alt_text es un parametro oficial soportado por Meta desde marzo 2025 para
   // posts de imagen (no Reels/Stories). Mejora accesibilidad y SEO/indexacion.
   if (altText) paramsCrear.set("alt_text", altText.slice(0, 100));

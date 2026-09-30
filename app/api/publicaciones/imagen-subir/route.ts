@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { z } from "zod";
-import sizeOf from "image-size";
+import { normalizarA916 } from "@/lib/imagenFormato";
 
 export const maxDuration = 30;
 
@@ -10,12 +10,6 @@ const BRIDGE_SUBIR_IMAGEN = process.env.IONOS_BRIDGE_URL_PUBLICACION_SUBIR_IMAGE
 
 const MIMES_PERMITIDOS = ["image/png", "image/jpeg", "image/webp"];
 const TAMANO_MAXIMO_BYTES = 8 * 1024 * 1024; // 8 MB
-
-// Rango de relación de aspecto que Instagram/Meta acepta sin recortar en el feed.
-// Fuera de este rango, la API de Meta recorta automáticamente la imagen al publicar
-// (normalmente por abajo), cortando texto o elementos del diseño.
-const RATIO_MINIMO = 4 / 5; // 0.8 -> equivale a 1080x1350 (vertical)
-const RATIO_MAXIMO = 1.91; // horizontal máximo permitido por Meta
 
 const BodySchema = z.object({
   fileBase64: z.string().min(1),
@@ -41,25 +35,14 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "El archivo supera el límite de 8 MB" }, { status: 400 });
   }
 
+  // Toda imagen subida se normaliza al formato de la Biblioteca: 9:16, 1080x1920 JPEG.
+  let base64Normalizado: string;
   try {
-    const buffer = Buffer.from(parsed.data.fileBase64, "base64");
-    const { width, height } = sizeOf(buffer);
-
-    if (width && height) {
-      const ratio = width / height;
-      if (ratio < RATIO_MINIMO || ratio > RATIO_MAXIMO) {
-        return NextResponse.json(
-          {
-            error: `Relación de aspecto no válida para Instagram (${width}x${height}). Meta recortará la imagen al publicar y puede cortar texto o el CTA. Usa una relación entre 4:5 (vertical, ej. 1080x1350) y 1.91:1 (horizontal).`,
-          },
-          { status: 400 }
-        );
-      }
-    }
+    const normalizada = await normalizarA916(Buffer.from(parsed.data.fileBase64, "base64"));
+    base64Normalizado = normalizada.toString("base64");
   } catch (err) {
-    console.error("POST /api/publicaciones/imagen-subir: error leyendo dimensiones de imagen", err);
-    // No bloqueamos la subida si no se pudieron leer las dimensiones (ej. formato no soportado por image-size);
-    // el bridge/Meta seguirán aplicando sus propias validaciones.
+    console.error("POST /api/publicaciones/imagen-subir: no se pudo procesar la imagen", err);
+    return NextResponse.json({ error: "No se pudo procesar la imagen. Prueba con otro archivo PNG, JPG o WEBP." }, { status: 400 });
   }
 
   if (!BRIDGE_SUBIR_IMAGEN || !BRIDGE_SECRET) {
@@ -70,7 +53,7 @@ export async function POST(req: NextRequest) {
   const res = await fetch(BRIDGE_SUBIR_IMAGEN, {
     method: "POST",
     headers: { "Content-Type": "application/json", "X-Bridge-Secret": BRIDGE_SECRET },
-    body: JSON.stringify({ fileBase64: parsed.data.fileBase64, mimeType: parsed.data.mimeType }),
+    body: JSON.stringify({ fileBase64: base64Normalizado, mimeType: "image/jpeg" }),
   });
   const data = await res.json().catch(() => ({}));
 

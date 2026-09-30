@@ -89,7 +89,7 @@ export function PexelsImagePicker({
               src={foto.src.mediana}
               alt={foto.alt}
               loading="lazy"
-              style={{ width: "100%", height: 100, objectFit: "cover", borderRadius: 8 }}
+              style={{ width: "100%", aspectRatio: "9 / 16", objectFit: "cover", borderRadius: 8 }}
             />
             <button
               type="button"
