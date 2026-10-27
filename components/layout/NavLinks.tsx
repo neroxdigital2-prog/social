@@ -3,6 +3,7 @@
 import { useSearchParams } from "next/navigation";
 
 const ENLACES = [
+  { href: "/dashboard", label: "📊 Dashboard" },
   { href: "/generador", label: "Generador" },
   { href: "/nerox-analiza", label: "🔎 Nerox Analiza" },
   { href: "/crecimiento", label: "📈 Crecimiento" },
