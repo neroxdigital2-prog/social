@@ -3,7 +3,8 @@ import crypto from "crypto";
 import { waitUntil } from "@vercel/functions";
 import { descargarImagen, necesitaRecorteFeedInstagram, recortarParaFeedInstagram, subirBufferAlBridge } from "@/lib/imagenFormato";
 
-export const maxDuration = 60;
+// 300 s: los Reels de Instagram tardan en procesarse (vídeo) antes de poder publicarse.
+export const maxDuration = 300;
 
 const BRIDGE_SECRET = process.env.BRIDGE_SECRET!;
 const BRIDGE_PROGRAMADAS = process.env.IONOS_BRIDGE_URL_PUBLICACIONES_PROGRAMADAS_LIST!;
@@ -81,6 +82,8 @@ interface PublicacionProgramada {
   texto: string;
   hashtags: string[];
   imagenUrl: string | null;
+  videoUrl?: string | null;
+  formato?: "IMAGEN" | "VIDEO" | null;
   altText?: string | null;
   redesConectadas: RedConectadaResumen[];
 }
@@ -310,6 +313,58 @@ async function publicarEnX(accessTokenPack: string, texto: string) {
   return { postIdExterno: data?.data?.id };
 }
 
+// --- Vídeo (Reels) ---
+async function publicarVideoEnFacebook(pageId: string, token: string, texto: string, videoUrl: string) {
+  const body = new URLSearchParams({ access_token: token, file_url: videoUrl, description: texto });
+  const res = await fetch(`https://graph.facebook.com/${GRAPH_VERSION}/${pageId}/videos`, { method: "POST", body });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || data.error) {
+    return { error: data?.error?.message || "Error publicando el vídeo en Facebook" };
+  }
+  return { postIdExterno: data.id };
+}
+
+async function publicarReelEnInstagram(igId: string, token: string, texto: string, videoUrl: string) {
+  const crearRes = await fetch(`https://graph.facebook.com/${GRAPH_VERSION}/${igId}/media`, {
+    method: "POST",
+    body: new URLSearchParams({
+      media_type: "REELS",
+      video_url: videoUrl,
+      caption: texto,
+      share_to_feed: "true",
+      access_token: token,
+    }),
+  });
+  const crearData = await crearRes.json().catch(() => ({}));
+  if (!crearRes.ok || crearData.error || !crearData.id) {
+    return { error: crearData?.error?.message || "Error creando el contenedor del Reel en Instagram" };
+  }
+
+  // Instagram descarga y transcodifica el vídeo: se espera hasta ~3 min (cada 6 s)
+  for (let intento = 0; intento < 30; intento++) {
+    await new Promise((r) => setTimeout(r, 6000));
+    const estadoRes = await fetch(
+      `https://graph.facebook.com/${GRAPH_VERSION}/${crearData.id}?fields=status_code,status&access_token=${token}`
+    );
+    const estado = await estadoRes.json().catch(() => ({}));
+    if (estado.status_code === "FINISHED") {
+      const pubRes = await fetch(`https://graph.facebook.com/${GRAPH_VERSION}/${igId}/media_publish`, {
+        method: "POST",
+        body: new URLSearchParams({ creation_id: crearData.id, access_token: token }),
+      });
+      const pubData = await pubRes.json().catch(() => ({}));
+      if (!pubRes.ok || pubData.error) {
+        return { error: pubData?.error?.message || "Error publicando el Reel en Instagram" };
+      }
+      return { postIdExterno: pubData.id };
+    }
+    if (estado.status_code === "ERROR" || estado.status_code === "EXPIRED") {
+      return { error: `Instagram no pudo procesar el Reel (${estado.status || estado.status_code}).` };
+    }
+  }
+  return { error: "El Reel tardó demasiado en procesarse en Instagram (más de 3 min)." };
+}
+
 async function procesarPublicaciones() {
   const res = await fetch(BRIDGE_PROGRAMADAS, {
     method: "POST",
@@ -343,12 +398,19 @@ async function procesarPublicaciones() {
 
     const resultadosPorRed = [];
 
+    // Formato VIDEO: Reel en Instagram y vídeo en Facebook. Google Business y X siguen con imagen/texto.
+    const esVideo = pub.formato === "VIDEO" && !!pub.videoUrl;
+
     for (const red of pub.redesConectadas || []) {
       let resultado: { postIdExterno?: string; error?: string };
       if (red.red === "FACEBOOK") {
-        resultado = await publicarEnFacebook(red.cuentaExterna, red.accessToken, textoCompleto, pub.imagenUrl);
+        resultado = esVideo
+          ? await publicarVideoEnFacebook(red.cuentaExterna, red.accessToken, textoCompleto, pub.videoUrl!)
+          : await publicarEnFacebook(red.cuentaExterna, red.accessToken, textoCompleto, pub.imagenUrl);
       } else if (red.red === "INSTAGRAM") {
-        resultado = await publicarEnInstagram(red.cuentaExterna, red.accessToken, textoCompleto, pub.imagenUrl, pub.altText);
+        resultado = esVideo
+          ? await publicarReelEnInstagram(red.cuentaExterna, red.accessToken, textoCompleto, pub.videoUrl!)
+          : await publicarEnInstagram(red.cuentaExterna, red.accessToken, textoCompleto, pub.imagenUrl, pub.altText);
       } else if (red.red === "TWITTER") {
         resultado = await publicarEnX(red.accessToken, textoCompleto);
       } else if (red.red === "GOOGLE") {
@@ -389,7 +451,7 @@ export async function GET(req: NextRequest) {
   //
   // Por eso se responde OK de inmediato (en milisegundos) y el trabajo real
   // sigue corriendo en segundo plano con waitUntil, dentro del limite de
-  // Vercel (maxDuration=60s), sin depender de que el cliente siga esperando.
+  // Vercel (maxDuration=300s), sin depender de que el cliente siga esperando.
   waitUntil(
     procesarPublicaciones().catch((err) => {
       console.error("Error procesando publicaciones en segundo plano:", err);

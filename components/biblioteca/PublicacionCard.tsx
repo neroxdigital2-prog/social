@@ -22,6 +22,8 @@ interface Publicacion {
   estado: string;
   imagenPrompt: string;
   imagenUrl: string | null;
+  videoUrl?: string | null;
+  formato?: "IMAGEN" | "VIDEO" | null;
   fechaProgramada: string | null;
   redes: ResultadoRed[];
 }
@@ -57,6 +59,67 @@ export function PublicacionCard({ publicacion }: { publicacion: Publicacion }) {
 
   const [borrando, setBorrando] = useState(false);
   const [confirmandoBorrado, setConfirmandoBorrado] = useState(false);
+
+  // ── Formato: imagen o Reel de vídeo 9:16 ──
+  const [formato, setFormato] = useState<"IMAGEN" | "VIDEO">(publicacion.formato === "VIDEO" ? "VIDEO" : "IMAGEN");
+  const [videoUrl, setVideoUrl] = useState<string | null>(publicacion.videoUrl || null);
+  const [generandoVideo, setGenerandoVideo] = useState(false);
+  const [infoVideo, setInfoVideo] = useState<string | null>(null);
+
+  async function cambiarFormato(nuevo: "IMAGEN" | "VIDEO") {
+    if (nuevo === formato) return;
+    setFormato(nuevo);
+    setError(null);
+    // Solo se guarda "VIDEO" cuando ya existe el Reel; si no, se queda en pantalla para generarlo
+    if (nuevo === "IMAGEN" || videoUrl) {
+      const res = await fetch(`/api/publicaciones/${publicacion.id}/video`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ formato: nuevo }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setError(data?.error || "No se pudo cambiar el formato.");
+      }
+    }
+  }
+
+  async function generarVideo() {
+    setGenerandoVideo(true);
+    setError(null);
+    setInfoVideo(null);
+    const res = await fetch(`/api/publicaciones/${publicacion.id}/video`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ empresaId: publicacion.empresaId }),
+    });
+    const data = await res.json().catch(() => ({}));
+    setGenerandoVideo(false);
+    if (!res.ok) {
+      setError(data?.error || "No se pudo generar el vídeo.");
+      return;
+    }
+    setVideoUrl(data.videoUrl);
+    setFormato("VIDEO");
+    setInfoVideo(
+      `Reel de ${data.segundos}s · ${data.conVoz ? "con voz en off" : "sin voz"} · ${data.conMusica ? "con música" : "sin música"}`
+    );
+  }
+
+  async function quitarVideo() {
+    setGenerandoVideo(true);
+    setError(null);
+    const res = await fetch(`/api/publicaciones/${publicacion.id}/video`, { method: "DELETE" });
+    const data = await res.json().catch(() => ({}));
+    setGenerandoVideo(false);
+    if (!res.ok) {
+      setError(data?.error || "No se pudo quitar el vídeo.");
+      return;
+    }
+    setVideoUrl(null);
+    setFormato("IMAGEN");
+    setInfoVideo(null);
+  }
 
   async function generarImagenIA() {
     setGenerando(true);
@@ -261,58 +324,115 @@ export function PublicacionCard({ publicacion }: { publicacion: Publicacion }) {
         </div>
       </div>
 
-      {imagenUrl ? (
+      <div className="pub-formato" role="radiogroup" aria-label="Formato de la publicación">
+        <button type="button" role="radio" aria-checked={formato === "IMAGEN"} className="pub-formato-opcion" onClick={() => cambiarFormato("IMAGEN")}>
+          🖼️ Imagen
+        </button>
+        <button type="button" role="radio" aria-checked={formato === "VIDEO"} className="pub-formato-opcion" onClick={() => cambiarFormato("VIDEO")}>
+          🎬 Vídeo Reel
+        </button>
+      </div>
+
+      {formato === "VIDEO" ? (
         <div>
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={imagenUrl} alt={titulo} className="pub-imagen" />
+          {videoUrl ? (
+            <video
+              key={videoUrl}
+              src={videoUrl}
+              className="pub-imagen pub-video"
+              controls
+              playsInline
+              preload="metadata"
+              poster={imagenUrl || undefined}
+            />
+          ) : (
+            <button type="button" onClick={generarVideo} disabled={generandoVideo} className="btn-generar-imagen pub-video-vacio" aria-busy={generandoVideo}>
+              {generandoVideo ? (
+                <>
+                  <span className="pub-spinner" aria-hidden="true" />
+                  Creando tu Reel… (1-2 min)
+                  <small>Guion, voz en español, vídeo real y música</small>
+                </>
+              ) : (
+                <>
+                  🎬 Generar Reel con IA
+                  <small>Vertical 9:16 · voz en español · vídeo real</small>
+                </>
+              )}
+            </button>
+          )}
+          {videoUrl && (
+            <div className="pub-imagen-acciones">
+              <button type="button" onClick={generarVideo} disabled={generandoVideo} className="pub-btn-link">
+                {generandoVideo ? "Regenerando… (1-2 min)" : "Regenerar Reel"}
+              </button>
+              <button type="button" onClick={quitarVideo} disabled={generandoVideo} className="pub-btn-link pub-btn-danger">
+                Quitar vídeo
+              </button>
+            </div>
+          )}
+          {infoVideo && <p className="text-muted" style={{ fontSize: "0.78rem", margin: "0.3rem 0 0" }}>{infoVideo}</p>}
+          <p className="text-muted" style={{ fontSize: "0.72rem", margin: "0.3rem 0 0" }}>
+            Instagram y Facebook publicarán el Reel. Google Business usará la imagen.
+          </p>
+        </div>
+      ) : (
+        <>
+        {imagenUrl ? (
+          <div>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={imagenUrl} alt={titulo} className="pub-imagen" />
+            <div className="pub-imagen-acciones">
+              <button
+                type="button"
+                onClick={() => inputArchivoRef.current?.click()}
+                disabled={subiendo}
+                className="pub-btn-link"
+              >
+                {subiendo ? "Subiendo…" : "Cambiar imagen"}
+              </button>
+              <button type="button" onClick={quitarImagen} disabled={subiendo} className="pub-btn-link pub-btn-danger">
+                Quitar imagen
+              </button>
+              <button type="button" onClick={() => setMostrarPexels((v) => !v)} className="pub-btn-link">
+                {mostrarPexels ? "Cerrar Pexels" : "Buscar en Pexels"}
+              </button>
+            </div>
+            <input
+              ref={inputArchivoRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              style={{ display: "none" }}
+              onChange={subirImagenManual}
+            />
+          </div>
+        ) : (
           <div className="pub-imagen-acciones">
+            <button type="button" onClick={generarImagenIA} disabled={generando} className="btn-generar-imagen">
+              {generando ? "Generando imagen…" : "Generar con IA"}
+            </button>
             <button
               type="button"
               onClick={() => inputArchivoRef.current?.click()}
               disabled={subiendo}
-              className="pub-btn-link"
+              className="btn-generar-imagen"
             >
-              {subiendo ? "Subiendo…" : "Cambiar imagen"}
+              {subiendo ? "Subiendo…" : "Subir mi imagen"}
             </button>
-            <button type="button" onClick={quitarImagen} disabled={subiendo} className="pub-btn-link pub-btn-danger">
-              Quitar imagen
-            </button>
-            <button type="button" onClick={() => setMostrarPexels((v) => !v)} className="pub-btn-link">
+            <button type="button" onClick={() => setMostrarPexels((v) => !v)} className="btn-generar-imagen">
               {mostrarPexels ? "Cerrar Pexels" : "Buscar en Pexels"}
             </button>
+            <input
+              ref={inputArchivoRef}
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              style={{ display: "none" }}
+              onChange={subirImagenManual}
+            />
           </div>
-          <input
-            ref={inputArchivoRef}
-            type="file"
-            accept="image/png,image/jpeg,image/webp"
-            style={{ display: "none" }}
-            onChange={subirImagenManual}
-          />
-        </div>
-      ) : (
-        <div className="pub-imagen-acciones">
-          <button type="button" onClick={generarImagenIA} disabled={generando} className="btn-generar-imagen">
-            {generando ? "Generando imagen…" : "Generar con IA"}
-          </button>
-          <button
-            type="button"
-            onClick={() => inputArchivoRef.current?.click()}
-            disabled={subiendo}
-            className="btn-generar-imagen"
-          >
-            {subiendo ? "Subiendo…" : "Subir mi imagen"}
-          </button>
-          <button type="button" onClick={() => setMostrarPexels((v) => !v)} className="btn-generar-imagen">
-            {mostrarPexels ? "Cerrar Pexels" : "Buscar en Pexels"}
-          </button>
-          <input
-            ref={inputArchivoRef}
-            type="file"
-            accept="image/png,image/jpeg,image/webp"
-            style={{ display: "none" }}
-            onChange={subirImagenManual}
-          />
-        </div>
+        )}
+
+        </>
       )}
 
       {mostrarPexels && (

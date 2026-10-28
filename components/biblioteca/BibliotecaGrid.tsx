@@ -20,6 +20,8 @@ interface Publicacion {
   estado: string;
   imagenPrompt: string;
   imagenUrl: string | null;
+  videoUrl?: string | null;
+  formato?: "IMAGEN" | "VIDEO" | null;
   fechaProgramada: string | null;
   redes: ResultadoRed[];
 }
