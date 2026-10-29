@@ -8,8 +8,10 @@ import type { Medio } from "@/lib/reel/medios";
 export const ANCHO = 1080;
 export const ALTO = 1920;
 const FPS = 30;
-const DURACION_CTA = 2.6;
-const DURACION_MAX = 45;
+const DURACION_CTA = 3.5;
+const DURACION_MAX = 60;
+const DURACION_MIN = 18; // ningún Reel por debajo de 18 s
+const MARGEN_TRAS_VOZ = 1.2; // la voz termina antes de que aparezca la llamada a la acción
 
 const FUENTE_TITULO = path.join(process.cwd(), "assets/fonts/Montserrat_800ExtraBold.ttf");
 const FUENTE_TEXTO = path.join(process.cwd(), "assets/fonts/Montserrat_600SemiBold.ttf");
@@ -94,10 +96,13 @@ function ejecutarFfmpeg(args: string[], limiteMs = 240_000): Promise<void> {
 
 function calcularDuraciones(escenas: EscenaRender[], segundosVoz: number | null): number[] {
   const n = escenas.length;
-  const base = Math.min(DURACION_MAX - DURACION_CTA, Math.max(segundosVoz ? segundosVoz + 0.6 : 0, n * 3.2));
-  const pesos = escenas.map((e) => Math.max(3, e.texto.split(" ").length));
+  const base = Math.min(
+    DURACION_MAX - DURACION_CTA,
+    Math.max(segundosVoz ? segundosVoz + 0.3 + MARGEN_TRAS_VOZ : 0, n * 4, DURACION_MIN - DURACION_CTA)
+  );
+  const pesos = escenas.map((e) => Math.max(4, e.texto.split(" ").length));
   const total = pesos.reduce((a, b) => a + b, 0);
-  const dur = pesos.map((p) => Math.max(1.8, (base * p) / total));
+  const dur = pesos.map((p) => Math.max(2.5, (base * p) / total));
   dur[n - 1] += DURACION_CTA; // la última escena sostiene la llamada a la acción
   return dur.map((d) => Math.round(d * 100) / 100);
 }
@@ -185,7 +190,7 @@ export async function renderizarReel(op: OpcionesRender): Promise<ResultadoRende
         `drawtext=fontfile='${FUENTE_TITULO}':textfile='${path.join(dir, "cta.txt")}':expansion=none:` +
         `fontsize=92:fontcolor=white:line_spacing=16:x=(w-text_w)/2:y=(h-text_h)/2:` +
         `enable='gte(t,${inicioCta.toFixed(2)})',` +
-        `format=yuv420p[v]`
+        `fade=t=out:st=${Math.max(0, total - 0.6).toFixed(2)}:d=0.6,format=yuv420p[v]`
     );
 
     // 5. Audio: voz + música con "ducking" (la música baja cuando habla la voz) y normalizado a -14 LUFS

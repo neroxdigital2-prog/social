@@ -23,8 +23,8 @@ Escribe SIEMPRE en español de España, tono cercano, directo y profesional, sin
 Devuelve SOLO un JSON válido con esta forma exacta:
 {"locucion":"...","escenas":[{"texto":"...","busqueda":"..."}],"cta":"..."}
 Reglas:
-- "locucion": voz en off de 30 a 45 palabras (unos 15 segundos). Empieza con un gancho fuerte en la primera frase. No digas URLs ni hashtags.
-- "escenas": entre 3 y 4. "texto" es lo que aparece en pantalla: máximo 7 palabras, sin punto final. Deben seguir el orden de la locución.
+- "locucion": voz en off de 50 a 65 palabras (unos 22-25 segundos). Termina con una frase de cierre completa. Empieza con un gancho fuerte en la primera frase. No digas URLs ni hashtags.
+- "escenas": entre 4 y 5. "texto" es lo que aparece en pantalla: máximo 7 palabras, sin punto final. Deben seguir el orden de la locución.
 - "busqueda": 2-4 palabras EN INGLÉS para buscar vídeo de stock real y vertical que ilustre esa escena (personas reales, oficinas, comercios, móviles, clientes...). Nada abstracto.
 - "cta": máximo 6 palabras, en imperativo (ej. "Escríbenos por WhatsApp hoy").
 - No inventes cifras, premios ni datos que no estén en el texto original.`;
@@ -42,7 +42,7 @@ function guionDeRespaldo(d: DatosGuion): GuionReel {
   const frases = limpiar(d.texto, 600)
     .split(/(?<=[.!?¿¡])\s+/)
     .filter((f) => f.length > 10);
-  const locucion = [d.titulo, ...frases].join(" ").split(" ").slice(0, 42).join(" ");
+  const locucion = [d.titulo, ...frases].join(" ").split(" ").slice(0, 60).join(" ");
   const palabrasClave = (d.imagenPrompt || "small business office").split(" ").slice(0, 4).join(" ");
   return {
     locucion,
@@ -70,8 +70,8 @@ ${d.imagenPrompt ? `Idea visual: ${d.imagenPrompt}` : ""}`;
         busqueda: limpiar(String(e.busqueda || ""), 60) || "small business",
       }))
       .filter((e: EscenaGuion) => e.texto)
-      .slice(0, 4);
-    const locucion = limpiar(String(json.locucion || ""), 400);
+      .slice(0, 5);
+    const locucion = limpiar(String(json.locucion || ""), 600);
     if (escenas.length < 2 || locucion.split(" ").length < 12) throw new Error("Guion incompleto");
     return { locucion, escenas, cta: limpiar(String(json.cta || "Escríbenos por WhatsApp"), 45) };
   } catch (error) {
