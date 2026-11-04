@@ -297,7 +297,7 @@ export function PublicacionCard({ publicacion }: { publicacion: Publicacion }) {
   }
 
   return (
-    <article className="pub-card">
+    <article className="pub-card" id={`pub-${publicacion.id}`}>
       <div className="pub-card-top">
         <span className="pub-tipo">{publicacion.tipo.replace(/_/g, " ")}</span>
         <div className="pub-card-acciones">

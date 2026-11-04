@@ -1,5 +1,7 @@
 import { auth } from "@/auth";
+import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
+import { COOKIE_RESUELTAS, leerResueltas } from "@/lib/alertasResueltas";
 import { Building2, CalendarDays, Plus, Sparkles } from "lucide-react";
 import { BannerSaludCompacto } from "@/components/salud/BannerSaludCompacto";
 import { cargarDashboard } from "@/lib/dashboard";
@@ -20,7 +22,8 @@ export default async function DashboardPage({ searchParams }: { searchParams: { 
   const session = await auth();
   if (!session?.user?.id) redirect("/login");
 
-  const datos = await cargarDashboard(session.user.id, searchParams.empresa);
+  const resueltas = leerResueltas(cookies().get(COOKIE_RESUELTAS)?.value);
+  const datos = await cargarDashboard(session.user.id, searchParams.empresa, resueltas);
   const nombre = session.user.name?.split(" ")[0] || "";
 
   if (!datos.empresaId) {
@@ -63,7 +66,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: { 
           <ProximasPublicaciones items={datos.proximas} empresaId={datos.empresaId} />
         </div>
         <aside className="dsh-columna-lateral" aria-label="Estado">
-          <PanelAlertas alertas={datos.alertas} />
+          <PanelAlertas alertas={datos.alertas} ocultas={datos.alertasOcultas} empresaId={datos.empresaId} />
           <EstadoRedes redes={datos.redes} empresaId={datos.empresaId} />
         </aside>
       </div>

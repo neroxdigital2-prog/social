@@ -1,13 +1,17 @@
 // Agrega en el servidor todos los datos del Dashboard a partir de los bridges
-// que ya existen (no requiere ningún PHP nuevo). Cada bloque falla de forma
-// aislada: si un bridge no responde, ese bloque sale vacío y el resto se pinta.
+// que ya existen. Cada bloque falla de forma aislada: si un bridge no responde,
+// ese bloque sale vacío y el resto se pinta.
 
-type RedSocial = "FACEBOOK" | "INSTAGRAM" | "LINKEDIN" | "TIKTOK" | "GOOGLE" | "TWITTER";
+import { diagnosticarError, type Diagnostico } from "@/lib/diagnosticoRedes";
+import type { MapaResueltas } from "@/lib/alertasResueltas";
+
+export type RedSocial = "FACEBOOK" | "INSTAGRAM" | "LINKEDIN" | "TIKTOK" | "GOOGLE" | "TWITTER";
 
 interface PublicacionRedRaw {
   red: RedSocial;
   publicadoEn: string | null;
   error: string | null;
+  createdAt?: string | null;
 }
 
 interface PublicacionRaw {
@@ -63,10 +67,30 @@ export interface ProximaPublicacion {
   redes: RedSocial[];
 }
 
+export interface PublicacionAfectada {
+  id: string;
+  titulo: string;
+  fecha: string; // MySQL "YYYY-MM-DD HH:MM:SS" (Madrid)
+  mensaje: string;
+}
+
+export interface Incidencia {
+  red: RedSocial;
+  nombreRed: string;
+  mensaje: string; // error original de la red
+  fecha: string;
+  afectadas: PublicacionAfectada[]; // fallos seguidos desde el último éxito (máx. 5)
+  diagnostico: Diagnostico;
+}
+
 export interface Alerta {
+  clave: string; // identifica la alerta para poder descartarla
+  firma: string; // si cambia, la alerta descartada vuelve a aparecer
   nivel: "error" | "aviso";
   texto: string;
   href: string;
+  incidencia?: Incidencia;
+  detalle?: string;
 }
 
 export interface EstadoRed {
@@ -74,7 +98,11 @@ export interface EstadoRed {
   nombre: string;
   conectada: boolean;
   cuenta: string | null;
-  ultimoError: string | null;
+  estado: "ok" | "error" | "aviso" | "off";
+  ultimoExito: string | null;
+  incidencia: Incidencia | null;
+  claveAlerta: string | null;
+  firmaAlerta: string | null;
 }
 
 export interface DatosDashboard {
@@ -84,10 +112,11 @@ export interface DatosDashboard {
   actividad: PuntoActividad[];
   proximas: ProximaPublicacion[];
   alertas: Alerta[];
+  alertasOcultas: number;
   redes: EstadoRed[];
 }
 
-const NOMBRES_RED: Record<RedSocial, string> = {
+export const NOMBRES_RED: Record<RedSocial, string> = {
   FACEBOOK: "Facebook",
   INSTAGRAM: "Instagram",
   GOOGLE: "Google Business",
@@ -132,12 +161,26 @@ function tendencia(actual: number, anterior: number): Kpi["tendencia"] {
   return "igual";
 }
 
-export async function cargarDashboard(userId: string, empresaParam?: string): Promise<DatosDashboard> {
+interface Envio extends PublicacionRedRaw {
+  pub: PublicacionRaw;
+  momento: string; // cuándo se intentó publicar (para ordenar)
+}
+
+function momentoEnvio(r: PublicacionRedRaw, p: PublicacionRaw): string {
+  // El intento ocurre en la fecha programada; si no hay, la más reciente conocida
+  return [r.publicadoEn, p.fechaProgramada, r.createdAt, p.createdAt].filter(Boolean).sort().reverse()[0] || "";
+}
+
+export async function cargarDashboard(
+  userId: string,
+  empresaParam?: string,
+  resueltas: MapaResueltas = {}
+): Promise<DatosDashboard> {
   const empresas = (await bridge<{ id: string; nombre: string }[]>(process.env.IONOS_BRIDGE_URL_EMPRESAS_LIST, { userId })) || [];
   const empresa = empresas.find((e) => e.id === empresaParam) || empresas[0];
 
   if (!empresa) {
-    return { empresaId: null, empresaNombre: null, kpis: [], actividad: [], proximas: [], alertas: [], redes: [] };
+    return { empresaId: null, empresaNombre: null, kpis: [], actividad: [], proximas: [], alertas: [], alertasOcultas: 0, redes: [] };
   }
 
   const hoy = new Date();
@@ -161,16 +204,18 @@ export async function cargarDashboard(userId: string, empresaParam?: string): Pr
 
   const hoyIso = isoDia(hoy);
   const mesActual = hoyIso.slice(0, 7);
-  const fechaMesAnterior = new Date(hoy.getFullYear(), hoy.getMonth() - 1, 15);
-  const mesAnterior = isoDia(fechaMesAnterior).slice(0, 7);
+  const mesAnterior = isoDia(new Date(hoy.getFullYear(), hoy.getMonth() - 1, 15)).slice(0, 7);
   const hace7 = isoDia(new Date(hoy.getTime() - 7 * 86400000));
 
-  // ── Envíos a redes (cada red publicada cuenta como un envío) ──
-  const envios = publicaciones.flatMap((p) => (p.redes || []).map((r) => ({ ...r, pub: p })));
+  // ── Envíos a redes: cada (publicación, red) con resultado ──
+  const envios: Envio[] = publicaciones.flatMap((p) =>
+    (p.redes || [])
+      .filter((r) => r.publicadoEn || r.error)
+      .map((r) => ({ ...r, pub: p, momento: momentoEnvio(r, p) }))
+  );
   const enviosOk = envios.filter((e) => e.publicadoEn);
   const enviosMes = enviosOk.filter((e) => diaDe(e.publicadoEn).startsWith(mesActual)).length;
   const enviosMesAnt = enviosOk.filter((e) => diaDe(e.publicadoEn).startsWith(mesAnterior)).length;
-  const fallos7d = envios.filter((e) => e.error && diaDe(e.pub.fechaProgramada || e.pub.createdAt) >= hace7);
 
   // ── Leads ──
   const leadsMes = leads.filter((l) => diaDe(l.createdAt).startsWith(mesActual)).length;
@@ -210,9 +255,7 @@ export async function cargarDashboard(userId: string, empresaParam?: string): Pr
       etiqueta: "Seguidores Instagram",
       valor: segActual !== null ? formatearNumero(segActual) : "—",
       detalle:
-        difSeg === null
-          ? "Sin datos todavía"
-          : `${difSeg >= 0 ? "+" : ""}${formatearNumero(difSeg)} en ${DIAS_ACTIVIDAD} días`,
+        difSeg === null ? "Sin datos todavía" : `${difSeg >= 0 ? "+" : ""}${formatearNumero(difSeg)} en ${DIAS_ACTIVIDAD} días`,
       tendencia: difSeg === null ? undefined : difSeg > 0 ? "sube" : difSeg < 0 ? "baja" : "igual",
       href: `/crecimiento${q}`,
     },
@@ -239,44 +282,111 @@ export async function cargarDashboard(userId: string, empresaParam?: string): Pr
     if (p) p.leads++;
   });
 
-  // ── Estado de redes ──
-  const ultimoErrorPorRed = new Map<RedSocial, string>();
-  [...fallos7d]
-    .sort((a, b) => ((a.pub.fechaProgramada || "") < (b.pub.fechaProgramada || "") ? 1 : -1))
-    .forEach((e) => {
-      if (!ultimoErrorPorRed.has(e.red)) ultimoErrorPorRed.set(e.red, e.error!);
-    });
+  // ── Estado de cada red según su ÚLTIMO intento ──
+  // Si después de un error hubo una publicación correcta, la red vuelve sola a "Activa".
   const conectadas = new Map(redesConectadas.map((r) => [r.red, r]));
   const redesMostrar = Array.from(new Set<RedSocial>([...REDES_PRINCIPALES, ...redesConectadas.map((r) => r.red)]));
-  const redes: EstadoRed[] = redesMostrar.map((red) => ({
-    red,
-    nombre: NOMBRES_RED[red] || red,
-    conectada: conectadas.has(red),
-    cuenta: conectadas.get(red)?.cuentaSecundaria || null,
-    ultimoError: ultimoErrorPorRed.get(red) || null,
-  }));
+
+  const redes: EstadoRed[] = redesMostrar.map((red) => {
+    const intentos = envios.filter((e) => e.red === red).sort((a, b) => (a.momento < b.momento ? 1 : -1));
+    const ultimoExito = intentos.find((e) => e.publicadoEn)?.publicadoEn || null;
+    const fallosSeguidos: Envio[] = [];
+    for (const e of intentos) {
+      if (e.publicadoEn) break;
+      fallosSeguidos.push(e);
+    }
+
+    let incidencia: Incidencia | null = null;
+    if (conectadas.has(red) && fallosSeguidos.length > 0) {
+      const ultimo = fallosSeguidos[0];
+      incidencia = {
+        red,
+        nombreRed: NOMBRES_RED[red] || red,
+        mensaje: ultimo.error || "Error desconocido",
+        fecha: ultimo.momento,
+        afectadas: fallosSeguidos.slice(0, 5).map((e) => ({
+          id: e.pub.id,
+          titulo: e.pub.titulo || "Sin título",
+          fecha: e.momento,
+          mensaje: e.error || "",
+        })),
+        diagnostico: diagnosticarError(red, ultimo.error || ""),
+      };
+    }
+
+    const claveAlerta = incidencia ? `${empresa.id}|red|${red}` : null;
+    const firmaAlerta = incidencia ? incidencia.fecha : null;
+    const resuelta = !!claveAlerta && resueltas[claveAlerta] === firmaAlerta;
+
+    let estado: EstadoRed["estado"] = "ok";
+    if (!conectadas.has(red)) estado = "off";
+    else if (incidencia && !resuelta) estado = incidencia.diagnostico.ambito === "conexion" ? "error" : "aviso";
+
+    return {
+      red,
+      nombre: NOMBRES_RED[red] || red,
+      conectada: conectadas.has(red),
+      cuenta: conectadas.get(red)?.cuentaSecundaria || null,
+      estado,
+      ultimoExito,
+      incidencia: resuelta ? null : incidencia,
+      claveAlerta,
+      firmaAlerta,
+    };
+  });
 
   // ── Alertas ──
-  const alertas: Alerta[] = [];
+  const todas: Alerta[] = [];
   redes.forEach((r) => {
-    if (r.conectada && r.ultimoError) {
-      alertas.push({ nivel: "error", texto: `${r.nombre}: ${r.ultimoError.slice(0, 140)}`, href: `/biblioteca${q}` });
+    if (r.incidencia) {
+      todas.push({
+        clave: r.claveAlerta!,
+        firma: r.firmaAlerta!,
+        nivel: r.incidencia.diagnostico.ambito === "conexion" ? "error" : "aviso",
+        texto: `${r.nombre}: ${r.incidencia.diagnostico.titulo}`,
+        href: `/configuracion${q}`,
+        incidencia: r.incidencia,
+      });
     }
   });
   redes
     .filter((r) => !r.conectada && REDES_PRINCIPALES.includes(r.red))
-    .forEach((r) => alertas.push({ nivel: "aviso", texto: `${r.nombre} no está conectado`, href: `/configuracion${q}` }));
+    .forEach((r) =>
+      todas.push({
+        clave: `${empresa.id}|off|${r.red}`,
+        firma: "1",
+        nivel: "aviso",
+        texto: `${r.nombre} no está conectado`,
+        href: `/configuracion${q}`,
+        detalle: `Sin conexión, Nerox no puede publicar en ${r.nombre}. Ve a Configuración y pulsa «Conectar».`,
+      })
+    );
   if (programadas.length === 0) {
-    alertas.push({ nivel: "aviso", texto: "No hay publicaciones programadas para los próximos días", href: `/generador${q}` });
+    todas.push({
+      clave: `${empresa.id}|sinprog`,
+      firma: hoyIso, // vuelve a avisar al día siguiente
+      nivel: "aviso",
+      texto: "No hay publicaciones programadas para los próximos días",
+      href: `/generador${q}`,
+      detalle: "Genera contenido con IA y prográmalo en el Calendario para no dejar de publicar.",
+    });
   }
   const leadsSinAtender = leads.filter((l) => l.estado === "NUEVO" && diaDe(l.createdAt) < hace7).length;
   if (leadsSinAtender > 0) {
-    alertas.push({
+    todas.push({
+      clave: `${empresa.id}|leads`,
+      firma: String(leadsSinAtender), // si entran más leads sin atender, vuelve a aparecer
       nivel: "aviso",
       texto: `${leadsSinAtender} lead${leadsSinAtender > 1 ? "s" : ""} en estado NUEVO desde hace más de 7 días`,
       href: `/crm${q}`,
+      detalle:
+        "Son contactos que nadie ha atendido en una semana. Ábrelos en el CRM y cámbialos a «Contactado», «Calificado» o «Perdido» para limpiar el embudo.",
     });
   }
+
+  const alertas = todas.filter((a) => resueltas[a.clave] !== a.firma);
+  const prefijo = `${empresa.id}|`;
+  const alertasOcultas = Object.keys(resueltas).filter((k) => k.startsWith(prefijo)).length;
 
   const proximas: ProximaPublicacion[] = programadas.slice(0, 5).map((p) => {
     const seleccion = (p.redes || []).filter((r) => !r.publicadoEn && !r.error).map((r) => r.red);
@@ -297,6 +407,7 @@ export async function cargarDashboard(userId: string, empresaParam?: string): Pr
     actividad: Array.from(porDia.values()),
     proximas,
     alertas,
+    alertasOcultas,
     redes,
   };
 }
