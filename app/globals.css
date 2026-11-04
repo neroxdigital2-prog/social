@@ -1381,3 +1381,74 @@ select option {
 .pub-card { scroll-margin-top: 90px; }
 .pub-card:target { outline: 3px solid var(--color-primary); outline-offset: 3px; }
 @media (prefers-reduced-motion: reduce) { .dsh-girando, .dsh-chevron { animation: none; transition: none; } }
+
+/* ═══════════ CRM: selección, borrado, registro de actividad ═══════════ */
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+.crm-pestanas { display: flex; gap: 4px; padding: 4px; margin-bottom: 1.1rem; border-radius: 12px; background: var(--color-surface); width: fit-content; max-width: 100%; }
+.crm-pestana { border: none; background: transparent; padding: 0.5rem 0.95rem; border-radius: 9px; font: inherit; font-size: 0.88rem; font-weight: 600; color: var(--color-text-muted); cursor: pointer; transition: background-color 0.15s ease, color 0.15s ease; }
+.crm-pestana[aria-selected="true"] { background: #fff; color: var(--color-text); box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1); }
+.crm-pestana:focus-visible, .crm-btn:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+
+.crm-barra { display: flex; flex-wrap: wrap; align-items: center; gap: 0.6rem 1rem; padding: 0.6rem 0.75rem; margin: 0.75rem 0; border: 1px solid hsl(240 6% 90%); border-radius: 12px; background: #fff; position: sticky; top: 0; z-index: 2; }
+.crm-check-todos { display: inline-flex; align-items: center; gap: 0.45rem; font-size: 0.86rem; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.crm-check-todos input, .crm-check, .reg-tabla input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--color-primary); cursor: pointer; flex-shrink: 0; }
+.crm-buscar { flex: 1 1 200px; min-width: 0; padding: 0.45rem 0.7rem; border: 1px solid hsl(240 6% 88%); border-radius: 9px; font: inherit; font-size: 0.86rem; }
+.crm-barra-acciones { display: flex; flex-wrap: wrap; gap: 0.4rem; margin-left: auto; }
+.crm-btn { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.45rem 0.8rem; border-radius: 9px; border: 1px solid hsl(240 6% 88%); background: #fff; color: var(--color-text); font: inherit; font-size: 0.82rem; font-weight: 600; cursor: pointer; white-space: nowrap; transition: background-color 0.15s ease, border-color 0.15s ease, transform 0.1s ease; }
+.crm-btn:hover:not(:disabled) { background: var(--color-surface); }
+.crm-btn:active:not(:disabled) { transform: scale(0.97); }
+.crm-btn:disabled { opacity: 0.45; cursor: not-allowed; }
+.crm-btn-mini { padding: 0.3rem 0.55rem; font-size: 0.78rem; }
+.crm-btn-peligro { color: var(--color-error); border-color: hsl(0 74% 45% / 0.3); }
+.crm-btn-peligro:hover:not(:disabled) { background: hsl(0 74% 45% / 0.07); }
+.crm-btn-peligro-solido { background: var(--color-error); border-color: transparent; color: #fff; }
+.crm-btn-peligro-solido:hover:not(:disabled) { background: hsl(0 74% 38%); }
+.crm-confirmar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.75rem; padding: 0.8rem 1rem; margin-bottom: 0.9rem; border-radius: 12px; background: hsl(0 74% 45% / 0.07); border: 1px solid hsl(0 74% 45% / 0.25); color: hsl(0 74% 28%); }
+.crm-confirmar p { margin: 0; font-size: 0.9rem; flex: 1 1 260px; }
+.crm-confirmar-acciones { display: flex; gap: 0.5rem; }
+.crm-aviso { margin: 0 0 1rem; padding: 0.6rem 0.85rem; border-radius: 10px; background: hsl(142 65% 32% / 0.08); color: hsl(142 65% 24%); font-size: 0.86rem; }
+.crm-item { gap: 0.75rem; }
+.crm-item-marcado .crm-item { background: hsl(var(--color-primary-h) var(--color-primary-s) 96%); }
+.crm-item-meta time { white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+.reg { display: grid; gap: 0.9rem; }
+.reg-cabecera { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-start; gap: 0.75rem; }
+.reg-cabecera h2 { font-size: clamp(1.05rem, 1rem + 0.4vw, 1.3rem); }
+.reg-cabecera p { margin: 0.2rem 0 0; font-size: 0.85rem; max-width: 60ch; }
+.reg-descargas { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.reg-filtros { display: grid; gap: 0.6rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr)); }
+.reg-filtros label { display: grid; gap: 0.25rem; font-size: 0.75rem; font-weight: 700; color: var(--color-text-muted); text-transform: uppercase; letter-spacing: 0.03em; }
+.reg-filtros input, .reg-filtros select { padding: 0.45rem 0.6rem; border: 1px solid hsl(240 6% 88%); border-radius: 9px; font: inherit; font-size: 0.86rem; text-transform: none; letter-spacing: 0; font-weight: 400; color: var(--color-text); background: #fff; }
+.reg-resumen { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0; padding: 0; list-style: none; }
+.reg-resumen li { padding: 0.25rem 0.6rem; border-radius: 999px; background: var(--color-surface); font-size: 0.78rem; }
+.reg-tabla-envoltorio { overflow-x: auto; border: 1px solid hsl(240 6% 90%); border-radius: 12px; }
+.reg-tabla { width: 100%; border-collapse: collapse; font-size: 0.85rem; }
+.reg-tabla th { text-align: left; padding: 0.6rem 0.7rem; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--color-text-muted); background: var(--color-surface); white-space: nowrap; }
+.reg-tabla td { padding: 0.6rem 0.7rem; border-top: 1px solid hsl(240 6% 92%); vertical-align: top; }
+.reg-tabla tbody tr:hover { background: hsl(240 5% 98%); }
+.reg-marcada { background: hsl(var(--color-primary-h) var(--color-primary-s) 96%) !important; }
+.reg-fecha { white-space: nowrap; font-variant-numeric: tabular-nums; color: var(--color-text-muted); }
+.reg-desc { min-width: 240px; line-height: 1.45; overflow-wrap: anywhere; }
+.reg-nota { min-width: 140px; line-height: 1.45; font-style: italic; overflow-wrap: anywhere; }
+.reg-tipo { display: inline-block; padding: 0.15rem 0.5rem; border-radius: 6px; font-size: 0.72rem; font-weight: 700; white-space: nowrap; background: var(--color-surface); color: var(--color-text-muted); }
+.reg-tipo-busqueda_radar { background: hsl(199 89% 38% / 0.1); color: hsl(199 89% 28%); }
+.reg-tipo-lead_creado { background: hsl(142 65% 32% / 0.1); color: hsl(142 65% 24%); }
+.reg-tipo-lead_estado { background: hsl(262 83% 53% / 0.1); color: hsl(262 60% 40%); }
+.reg-tipo-leads_borrados, .reg-tipo-radar_resultado_borrado { background: hsl(0 74% 45% / 0.08); color: hsl(0 74% 32%); }
+.reg-input { width: 100%; min-width: 180px; padding: 0.4rem 0.5rem; border: 1px solid hsl(240 6% 85%); border-radius: 8px; font: inherit; font-size: 0.85rem; resize: vertical; }
+.reg-acciones-fila { white-space: nowrap; }
+.reg-acciones-fila .crm-btn + .crm-btn { margin-left: 0.3rem; }
+.reg-solo-imprimir { display: none; }
+
+@media print {
+  body * { visibility: hidden; }
+  .reg, .reg * { visibility: visible; }
+  .reg { position: absolute; inset: 0 auto auto 0; width: 100%; padding: 0; }
+  .no-imprimir { display: none !important; }
+  .reg-solo-imprimir { display: block; margin: 0; font-size: 10pt; color: #444; }
+  .reg-tabla-envoltorio { overflow: visible; border: none; }
+  .reg-tabla { font-size: 9pt; }
+  .reg-tabla tr { break-inside: avoid; }
+  .reg-tabla th { background: #eee !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
+.crm-item-info { flex: 1 1 220px; min-width: 0; }

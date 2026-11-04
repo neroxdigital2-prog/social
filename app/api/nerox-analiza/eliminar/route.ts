@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { registrarActividad } from "@/lib/registroActividad";
 
 export const dynamic = "force-dynamic";
 
@@ -19,6 +20,7 @@ export async function POST(req: NextRequest) {
 
   const body = await req.json().catch(() => ({}));
   const id = String(body?.id || "").trim();
+  const nombre = String(body?.nombre || "").slice(0, 200);
   if (!id) return NextResponse.json({ error: "Falta el id" }, { status: 400 });
 
   try {
@@ -32,6 +34,12 @@ export async function POST(req: NextRequest) {
     const data = await res.json().catch(() => ({ error: "El bridge de IONOS no devolvió JSON válido." }));
     if (!res.ok) return NextResponse.json(data, { status: res.status });
 
+    await registrarActividad({
+      userId: session.user.id,
+      tipo: "RADAR_RESULTADO_BORRADO",
+      descripcion: `Resultado RADAR borrado: ${nombre || id}`,
+      detalle: { id },
+    });
     return NextResponse.json(data);
   } catch (error: any) {
     return NextResponse.json({ error: "Fallo al conectar con el bridge: " + (error?.message || "error desconocido") }, { status: 502 });

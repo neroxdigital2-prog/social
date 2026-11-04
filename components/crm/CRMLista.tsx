@@ -1,6 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import { Download, Trash2 } from "lucide-react";
+import { RegistroActividad } from "@/components/crm/RegistroActividad";
+import { anotarDescarga, descargarCSV, fechaHora, sello } from "@/lib/exportar";
 
 interface Lead {
   id: string;
@@ -21,6 +24,7 @@ const ESTADOS = [
   { value: "GANADO", label: "Ganado" },
   { value: "PERDIDO", label: "Perdido" },
 ];
+const ETIQUETA_ESTADO: Record<string, string> = Object.fromEntries(ESTADOS.map((e) => [e.value, e.label]));
 
 const ORIGEN_LABEL: Record<string, string> = {
   MANUAL: "Manual",
@@ -30,10 +34,6 @@ const ORIGEN_LABEL: Record<string, string> = {
   REFERIDO: "Referido",
   OTRO: "Otro",
 };
-
-function formatearFecha(iso: string) {
-  return new Date(iso).toLocaleDateString("es-ES", { day: "2-digit", month: "short", year: "numeric" });
-}
 
 interface Interaccion {
   tipo: string;
@@ -46,15 +46,16 @@ interface LeadDetalle extends Lead {
   interacciones: Interaccion[];
 }
 
-function formatearFechaHora(iso: string) {
-  return new Date(iso).toLocaleString("es-ES", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" });
-}
+type Confirmacion = { tipo: "seleccion" | "todo"; cantidad: number } | null;
 
 export function CRMLista({ leads, empresaId }: { leads: Lead[]; empresaId: string }) {
+  const [pestana, setPestana] = useState<"leads" | "registro">("leads");
   const [items, setItems] = useState(leads);
   const [filtro, setFiltro] = useState("TODOS");
+  const [busqueda, setBusqueda] = useState("");
   const [guardandoId, setGuardandoId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [aviso, setAviso] = useState<string | null>(null);
 
   const [nombre, setNombre] = useState("");
   const [telefono, setTelefono] = useState("");
@@ -64,6 +65,66 @@ export function CRMLista({ leads, empresaId }: { leads: Lead[]; empresaId: strin
   const [expandidoId, setExpandidoId] = useState<string | null>(null);
   const [detalles, setDetalles] = useState<Record<string, LeadDetalle>>({});
   const [cargandoDetalle, setCargandoDetalle] = useState<string | null>(null);
+
+  const [seleccion, setSeleccion] = useState<Set<string>>(new Set());
+  const [confirmar, setConfirmar] = useState<Confirmacion>(null);
+  const [borrando, setBorrando] = useState(false);
+  const [versionRegistro, setVersionRegistro] = useState(0); // fuerza recargar el registro tras una acción
+
+  const leadsFiltrados = useMemo(() => {
+    const q = busqueda.trim().toLowerCase();
+    return items.filter(
+      (l) =>
+        (filtro === "TODOS" || l.estado === filtro) &&
+        (!q || `${l.nombre} ${l.email || ""} ${l.telefono || ""}`.toLowerCase().includes(q))
+    );
+  }, [items, filtro, busqueda]);
+
+  const todosVisiblesMarcados = leadsFiltrados.length > 0 && leadsFiltrados.every((l) => seleccion.has(l.id));
+  const algunoVisibleMarcado = leadsFiltrados.some((l) => seleccion.has(l.id));
+
+  function alternarSeleccion(id: string) {
+    setSeleccion((prev) => {
+      const nuevo = new Set(prev);
+      if (nuevo.has(id)) nuevo.delete(id);
+      else nuevo.add(id);
+      return nuevo;
+    });
+  }
+
+  function alternarTodos() {
+    setSeleccion((prev) => {
+      const nuevo = new Set(prev);
+      if (todosVisiblesMarcados) leadsFiltrados.forEach((l) => nuevo.delete(l.id));
+      else leadsFiltrados.forEach((l) => nuevo.add(l.id));
+      return nuevo;
+    });
+  }
+
+  async function borrar() {
+    if (!confirmar) return;
+    setBorrando(true);
+    setError(null);
+    const cuerpo =
+      confirmar.tipo === "todo" ? { empresaId, todo: true } : { empresaId, ids: Array.from(seleccion) };
+    const res = await fetch("/api/leads/borrar", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(cuerpo),
+    });
+    const data = await res.json().catch(() => ({}));
+    setBorrando(false);
+    setConfirmar(null);
+    if (!res.ok) {
+      setError(data?.error || "No se pudieron borrar los leads.");
+      return;
+    }
+    if (confirmar.tipo === "todo") setItems([]);
+    else setItems((prev) => prev.filter((l) => !seleccion.has(l.id)));
+    setSeleccion(new Set());
+    setAviso(`${data.borrados} lead${data.borrados === 1 ? "" : "s"} borrado${data.borrados === 1 ? "" : "s"}. Queda anotado en el Registro.`);
+    setVersionRegistro((v) => v + 1);
+  }
 
   async function alternarDetalle(id: string) {
     if (expandidoId === id) {
@@ -76,20 +137,21 @@ export function CRMLista({ leads, empresaId }: { leads: Lead[]; empresaId: strin
     const res = await fetch(`/api/leads/${id}`);
     const data = await res.json().catch(() => null);
     setCargandoDetalle(null);
-    if (res.ok && data?.id) {
-      setDetalles((prev) => ({ ...prev, [id]: data }));
-    }
+    if (res.ok && data?.id) setDetalles((prev) => ({ ...prev, [id]: data }));
   }
 
-  const leadsFiltrados = filtro === "TODOS" ? items : items.filter((l) => l.estado === filtro);
-
-  async function cambiarEstado(id: string, estado: string) {
-    setGuardandoId(id);
+  async function cambiarEstado(lead: Lead, estado: string) {
+    setGuardandoId(lead.id);
     setError(null);
-    const res = await fetch(`/api/leads/${id}/estado`, {
+    const res = await fetch(`/api/leads/${lead.id}/estado`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ estado }),
+      body: JSON.stringify({
+        estado,
+        empresaId,
+        nombre: lead.nombre,
+        estadoAnterior: ETIQUETA_ESTADO[lead.estado] || lead.estado,
+      }),
     });
     const data = await res.json().catch(() => null);
     setGuardandoId(null);
@@ -97,7 +159,8 @@ export function CRMLista({ leads, empresaId }: { leads: Lead[]; empresaId: strin
       setError(data?.error || "No se pudo actualizar el estado.");
       return;
     }
-    setItems((prev) => prev.map((l) => (l.id === id ? { ...l, estado } : l)));
+    setItems((prev) => prev.map((l) => (l.id === lead.id ? { ...l, estado } : l)));
+    setVersionRegistro((v) => v + 1);
   }
 
   async function crearLead(e: React.FormEvent<HTMLFormElement>) {
@@ -132,121 +195,236 @@ export function CRMLista({ leads, empresaId }: { leads: Lead[]; empresaId: strin
     setNombre("");
     setTelefono("");
     setEmail("");
+    setVersionRegistro((v) => v + 1);
+  }
+
+  function descargarLeads() {
+    const filas = (seleccion.size > 0 ? items.filter((l) => seleccion.has(l.id)) : leadsFiltrados).map((l) => [
+      fechaHora(l.createdAt),
+      l.nombre,
+      l.telefono || "",
+      l.email || "",
+      ORIGEN_LABEL[l.origen] || l.origen,
+      ETIQUETA_ESTADO[l.estado] || l.estado,
+      l.valorEstimado ?? "",
+    ]);
+    descargarCSV(`leads_${sello()}.csv`, ["Fecha y hora", "Nombre", "Teléfono", "Email", "Origen", "Estado", "Valor estimado (€)"], filas);
+    anotarDescarga(empresaId, `Descarga de ${filas.length} leads en Excel (CSV)`).then(() => setVersionRegistro((v) => v + 1));
   }
 
   return (
     <div className="crm-tarjeta">
-      <form onSubmit={crearLead} className="crm-form-nuevo">
-        <input
-          type="text"
-          placeholder="Nombre del lead"
-          value={nombre}
-          onChange={(e) => setNombre(e.target.value)}
-          required
-        />
-        <input
-          type="tel"
-          placeholder="Teléfono (opcional)"
-          value={telefono}
-          onChange={(e) => setTelefono(e.target.value)}
-        />
-        <input
-          type="email"
-          placeholder="Email (opcional)"
-          value={email}
-          onChange={(e) => setEmail(e.target.value)}
-        />
-        <button type="submit" className="btn-primary" disabled={creando || !nombre.trim()}>
-          {creando ? "Añadiendo…" : "+ Añadir lead"}
-        </button>
-      </form>
-
-      {error && (
-        <p role="alert" className="cal-error" style={{ marginBottom: "1rem" }}>
-          {error}
-        </p>
-      )}
-
-      <div className="crm-filtros">
+      <div className="crm-pestanas" role="tablist" aria-label="Secciones del CRM">
         <button
           type="button"
-          className={`crm-filtro-btn ${filtro === "TODOS" ? "crm-filtro-activo" : ""}`}
-          onClick={() => setFiltro("TODOS")}
+          role="tab"
+          id="tab-leads"
+          aria-selected={pestana === "leads"}
+          aria-controls="panel-leads"
+          className="crm-pestana"
+          onClick={() => setPestana("leads")}
         >
-          Todos ({items.length})
+          Leads ({items.length})
         </button>
-        {ESTADOS.map((e) => (
-          <button
-            key={e.value}
-            type="button"
-            className={`crm-filtro-btn ${filtro === e.value ? "crm-filtro-activo" : ""}`}
-            onClick={() => setFiltro(e.value)}
-          >
-            {e.label} ({items.filter((l) => l.estado === e.value).length})
-          </button>
-        ))}
+        <button
+          type="button"
+          role="tab"
+          id="tab-registro"
+          aria-selected={pestana === "registro"}
+          aria-controls="panel-registro"
+          className="crm-pestana"
+          onClick={() => setPestana("registro")}
+        >
+          Registro de actividad
+        </button>
       </div>
 
-      {leadsFiltrados.length === 0 ? (
-        <p className="cal-sin-publicaciones">No hay leads en esta categoría.</p>
+      {pestana === "registro" ? (
+        <div role="tabpanel" id="panel-registro" aria-labelledby="tab-registro">
+          <RegistroActividad empresaId={empresaId} version={versionRegistro} />
+        </div>
       ) : (
-        <div className="crm-lista">
-          {leadsFiltrados.map((lead) => (
-            <div key={lead.id} className="crm-item-wrapper">
-              <div className="crm-item" onClick={() => alternarDetalle(lead.id)} style={{ cursor: "pointer" }}>
-                <div className="crm-item-info">
-                  <strong className="crm-item-nombre">{lead.nombre}</strong>
-                  <div className="crm-item-meta">
-                    {lead.telefono && <span>{lead.telefono}</span>}
-                    {lead.email && <span>{lead.email}</span>}
-                    <span className="crm-item-origen">{ORIGEN_LABEL[lead.origen] || lead.origen}</span>
-                    <span>{formatearFecha(lead.createdAt)}</span>
-                  </div>
-                </div>
-                <select
-                  className="crm-select-estado"
-                  value={lead.estado}
-                  disabled={guardandoId === lead.id}
-                  onClick={(e) => e.stopPropagation()}
-                  onChange={(e) => cambiarEstado(lead.id, e.target.value)}
-                >
-                  {ESTADOS.map((e) => (
-                    <option key={e.value} value={e.value}>
-                      {e.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
+        <div role="tabpanel" id="panel-leads" aria-labelledby="tab-leads">
+          <form onSubmit={crearLead} className="crm-form-nuevo">
+            <input type="text" placeholder="Nombre del lead" value={nombre} onChange={(e) => setNombre(e.target.value)} required />
+            <input type="tel" placeholder="Teléfono (opcional)" value={telefono} onChange={(e) => setTelefono(e.target.value)} />
+            <input type="email" placeholder="Email (opcional)" value={email} onChange={(e) => setEmail(e.target.value)} />
+            <button type="submit" className="btn-primary" disabled={creando || !nombre.trim()}>
+              {creando ? "Añadiendo…" : "+ Añadir lead"}
+            </button>
+          </form>
 
-              {expandidoId === lead.id && (
-                <div className="crm-detalle">
-                  {cargandoDetalle === lead.id ? (
-                    <p className="text-muted">Cargando historial…</p>
-                  ) : detalles[lead.id] ? (
-                    <>
-                      {detalles[lead.id].notas && (
-                        <p className="crm-detalle-nota">{detalles[lead.id].notas}</p>
-                      )}
-                      {detalles[lead.id].interacciones.length === 0 ? (
-                        <p className="text-muted">Sin interacciones registradas todavía.</p>
+          {error && (
+            <p role="alert" className="cal-error" style={{ marginBottom: "1rem" }}>
+              {error}
+            </p>
+          )}
+          {aviso && (
+            <p role="status" className="crm-aviso">
+              {aviso}
+            </p>
+          )}
+
+          <div className="crm-filtros">
+            <button
+              type="button"
+              className={`crm-filtro-btn ${filtro === "TODOS" ? "crm-filtro-activo" : ""}`}
+              onClick={() => setFiltro("TODOS")}
+            >
+              Todos ({items.length})
+            </button>
+            {ESTADOS.map((e) => (
+              <button
+                key={e.value}
+                type="button"
+                className={`crm-filtro-btn ${filtro === e.value ? "crm-filtro-activo" : ""}`}
+                onClick={() => setFiltro(e.value)}
+              >
+                {e.label} ({items.filter((l) => l.estado === e.value).length})
+              </button>
+            ))}
+          </div>
+
+          {/* Barra de selección masiva */}
+          <div className="crm-barra">
+            <label className="crm-check-todos">
+              <input
+                type="checkbox"
+                checked={todosVisiblesMarcados}
+                ref={(el) => {
+                  if (el) el.indeterminate = !todosVisiblesMarcados && algunoVisibleMarcado;
+                }}
+                onChange={alternarTodos}
+                disabled={leadsFiltrados.length === 0}
+              />
+              Seleccionar todo ({leadsFiltrados.length})
+            </label>
+            <input
+              type="search"
+              className="crm-buscar"
+              placeholder="Buscar por nombre, teléfono o email…"
+              value={busqueda}
+              onChange={(e) => setBusqueda(e.target.value)}
+              aria-label="Buscar leads"
+            />
+            <div className="crm-barra-acciones">
+              <button type="button" className="crm-btn" onClick={descargarLeads} disabled={leadsFiltrados.length === 0}>
+                <Download size={15} aria-hidden="true" /> {seleccion.size > 0 ? `Descargar (${seleccion.size})` : "Descargar Excel"}
+              </button>
+              <button
+                type="button"
+                className="crm-btn crm-btn-peligro"
+                disabled={seleccion.size === 0 || borrando}
+                onClick={() => setConfirmar({ tipo: "seleccion", cantidad: seleccion.size })}
+              >
+                <Trash2 size={15} aria-hidden="true" /> Borrar seleccionados ({seleccion.size})
+              </button>
+              <button
+                type="button"
+                className="crm-btn crm-btn-peligro"
+                disabled={items.length === 0 || borrando}
+                onClick={() => setConfirmar({ tipo: "todo", cantidad: items.length })}
+              >
+                Borrar todos
+              </button>
+            </div>
+          </div>
+
+          {confirmar && (
+            <div className="crm-confirmar" role="alertdialog" aria-labelledby="crm-confirmar-texto">
+              <p id="crm-confirmar-texto">
+                {confirmar.tipo === "todo" ? (
+                  <>
+                    ¿Borrar <strong>TODOS los {confirmar.cantidad} leads</strong> de esta empresa, con su historial?
+                  </>
+                ) : (
+                  <>
+                    ¿Borrar <strong>{confirmar.cantidad} lead{confirmar.cantidad > 1 ? "s" : ""}</strong> seleccionado
+                    {confirmar.cantidad > 1 ? "s" : ""} y su historial?
+                  </>
+                )}{" "}
+                No se puede deshacer.
+              </p>
+              <div className="crm-confirmar-acciones">
+                <button type="button" className="crm-btn crm-btn-peligro-solido" onClick={borrar} disabled={borrando} autoFocus>
+                  {borrando ? "Borrando…" : "Sí, borrar"}
+                </button>
+                <button type="button" className="crm-btn" onClick={() => setConfirmar(null)} disabled={borrando}>
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          )}
+
+          {leadsFiltrados.length === 0 ? (
+            <p className="cal-sin-publicaciones">No hay leads en esta categoría.</p>
+          ) : (
+            <div className="crm-lista">
+              {leadsFiltrados.map((lead) => (
+                <div key={lead.id} className={`crm-item-wrapper${seleccion.has(lead.id) ? " crm-item-marcado" : ""}`}>
+                  <div className="crm-item" onClick={() => alternarDetalle(lead.id)} style={{ cursor: "pointer" }}>
+                    <input
+                      type="checkbox"
+                      className="crm-check"
+                      checked={seleccion.has(lead.id)}
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={() => alternarSeleccion(lead.id)}
+                      aria-label={`Seleccionar ${lead.nombre}`}
+                    />
+                    <div className="crm-item-info">
+                      <strong className="crm-item-nombre">{lead.nombre}</strong>
+                      <div className="crm-item-meta">
+                        {lead.telefono && <span>{lead.telefono}</span>}
+                        {lead.email && <span>{lead.email}</span>}
+                        <span className="crm-item-origen">{ORIGEN_LABEL[lead.origen] || lead.origen}</span>
+                        <time dateTime={lead.createdAt}>🕒 {fechaHora(lead.createdAt)}</time>
+                      </div>
+                    </div>
+                    <select
+                      className="crm-select-estado"
+                      value={lead.estado}
+                      disabled={guardandoId === lead.id}
+                      onClick={(e) => e.stopPropagation()}
+                      onChange={(e) => cambiarEstado(lead, e.target.value)}
+                      aria-label={`Estado de ${lead.nombre}`}
+                    >
+                      {ESTADOS.map((e) => (
+                        <option key={e.value} value={e.value}>
+                          {e.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {expandidoId === lead.id && (
+                    <div className="crm-detalle">
+                      {cargandoDetalle === lead.id ? (
+                        <p className="text-muted">Cargando historial…</p>
+                      ) : detalles[lead.id] ? (
+                        <>
+                          {detalles[lead.id].notas && <p className="crm-detalle-nota">{detalles[lead.id].notas}</p>}
+                          {detalles[lead.id].interacciones.length === 0 ? (
+                            <p className="text-muted">Sin interacciones registradas todavía.</p>
+                          ) : (
+                            <ul className="crm-cronologia">
+                              {detalles[lead.id].interacciones.map((i, idx) => (
+                                <li key={idx}>
+                                  <span className="crm-cronologia-fecha">{fechaHora(i.createdAt)}</span>
+                                  <span>{i.contenido}</span>
+                                </li>
+                              ))}
+                            </ul>
+                          )}
+                        </>
                       ) : (
-                        <ul className="crm-cronologia">
-                          {detalles[lead.id].interacciones.map((i, idx) => (
-                            <li key={idx}>
-                              <span className="crm-cronologia-fecha">{formatearFechaHora(i.createdAt)}</span>
-                              <span>{i.contenido}</span>
-                            </li>
-                          ))}
-                        </ul>
+                        <p className="text-muted">No se pudo cargar el historial.</p>
                       )}
-                    </>
-                  ) : (
-                    <p className="text-muted">No se pudo cargar el historial.</p>
+                    </div>
                   )}
                 </div>
-              )}
+              ))}
             </div>
-          ))}
+          )}
         </div>
       )}
     </div>

@@ -118,7 +118,7 @@ export function PanelNeroxAnaliza() {
       const res = await fetch("/api/nerox-analiza/eliminar", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id }),
+        body: JSON.stringify({ id, nombre }),
       });
       const data = await res.json().catch(() => null);
       if (!res.ok) {

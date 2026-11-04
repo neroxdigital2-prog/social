@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { z } from "zod";
+import { registrarActividad } from "@/lib/registroActividad";
 
 const BRIDGE_SECRET = process.env.BRIDGE_SECRET!;
 const BRIDGE_CREAR = process.env.IONOS_BRIDGE_URL_LEADS_CREATE!;
@@ -38,6 +39,15 @@ export async function POST(req: NextRequest) {
   if (!res.ok) {
     return NextResponse.json({ error: data?.error || "No se pudo crear el lead" }, { status: res.status });
   }
+
+  const contacto = [parsed.data.telefono, parsed.data.email].filter(Boolean).join(" · ");
+  await registrarActividad({
+    userId: session.user.id,
+    empresaId: parsed.data.empresaId,
+    tipo: "LEAD_CREADO",
+    descripcion: `Lead creado: ${parsed.data.nombre}${contacto ? ` (${contacto})` : ""}`,
+    detalle: { leadId: data?.id },
+  });
 
   return NextResponse.json(data, { status: 201 });
 }
