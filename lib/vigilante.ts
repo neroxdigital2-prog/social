@@ -173,6 +173,61 @@ export async function bridgeVigilante<T>(accion: string, datos: Record<string, u
   }
 }
 
+export interface DiagnosticoVigilante {
+  titulo: string;
+  causa: string;
+  pasos: string[];
+  tecnico?: string;
+}
+
+/** Explica por qué el bridge del vigilante no responde (para mostrarlo en el Centro de control). */
+export async function diagnosticarBridgeVigilante(): Promise<DiagnosticoVigilante | null> {
+  const url = urlBridge("IONOS_BRIDGE_URL_VIGILANTE");
+  if (!BRIDGE_SECRET) {
+    return { titulo: "Falta BRIDGE_SECRET en Vercel", causa: "La app no puede autenticarse con IONOS.", pasos: ["Vercel → Settings → Environment Variables → BRIDGE_SECRET (el mismo valor que en config.php de IONOS).", "Redeploy."] };
+  }
+  if (!url) return { titulo: "Sin URL del bridge", causa: "No se ha podido construir la URL de vigilante.php.", pasos: ["Crea IONOS_BRIDGE_URL_VIGILANTE=https://bridge.nerox.es/vigilante.php en Vercel."] };
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Bridge-Secret": BRIDGE_SECRET },
+      body: JSON.stringify({ accion: "latido_leer" }),
+      cache: "no-store",
+    });
+  } catch (e) {
+    return {
+      titulo: "No se puede conectar con IONOS",
+      causa: "bridge.nerox.es no responde (caído, DNS o certificado).",
+      pasos: ["Abre https://bridge.nerox.es/api/status.php en el navegador.", "Si no carga, revisa el hosting en IONOS."],
+      tecnico: e instanceof Error ? e.message : String(e),
+    };
+  }
+  const texto = await res.text().catch(() => "");
+  const tecnico = `HTTP ${res.status} · ${url} · ${texto.replace(/\s+/g, " ").slice(0, 220)}`;
+  if (res.ok) {
+    try {
+      JSON.parse(texto);
+      return null;
+    } catch {
+      return { titulo: "vigilante.php devuelve un error PHP", causa: "El archivo existe pero no responde JSON.", pasos: ["Sube de nuevo vigilante.php (la última versión) a /public/apps/social/.", "Comprueba que config.php está en la misma carpeta."], tecnico };
+    }
+  }
+  if (res.status === 404) {
+    return { titulo: "vigilante.php no está subido en IONOS", causa: "El servidor responde 404: el archivo no existe en esa ruta.", pasos: ["IONOS → Webspace → /public/apps/social/", "Sube vigilante.php (la última versión).", "Pulsa «Revisar ahora»."], tecnico };
+  }
+  if (res.status === 401 || res.status === 403) {
+    return { titulo: "La clave del bridge no coincide", causa: "IONOS rechaza la petición: BRIDGE_SECRET de Vercel ≠ el de config.php.", pasos: ["Copia el BRIDGE_SECRET de config.php en IONOS.", "Pégalo en Vercel → BRIDGE_SECRET y haz Redeploy."], tecnico };
+  }
+  if (/doesn't exist|no existe|Base table|1146/i.test(texto)) {
+    return { titulo: "Faltan las tablas del vigilante", causa: "vigilante.php está subido pero la base de datos no tiene sus tablas.", pasos: ["phpMyAdmin → dbs15942298 → pestaña SQL.", "Pega y ejecuta vigilante.sql (la última versión).", "Pulsa «Revisar ahora»."], tecnico };
+  }
+  if (/Unknown column|1054/i.test(texto)) {
+    return { titulo: "Las tablas están desactualizadas", causa: "Falta alguna columna nueva (se ejecutó una versión anterior de vigilante.sql).", pasos: ["Ejecuta de nuevo vigilante.sql (la última versión) en phpMyAdmin: no borra nada."], tecnico };
+  }
+  return { titulo: `vigilante.php responde con error ${res.status}`, causa: "Error interno en IONOS al ejecutar el bridge.", pasos: ["Sube de nuevo vigilante.php y ejecuta vigilante.sql.", "Si sigue, envíame el detalle técnico."], tecnico };
+}
+
 export async function registrarEventos(eventos: EventoNuevo[]) {
   if (!eventos.length) return;
   await bridgeVigilante("evento_registrar", { eventos });

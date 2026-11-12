@@ -1618,3 +1618,21 @@ select option {
   .cc-luz-ok::after, .cc-luz-error::after, .cc-agente-esqueleto, .cc-detalle { animation: none; }
   .cc-agente, .cc-chevron { transition: none; }
 }
+
+/* Centro de control: diagnóstico del vigilante y cola de publicación */
+.cc-diag { display: grid; gap: 0.35rem; padding: 0.8rem 0.95rem; border-radius: 10px; border: 1px solid hsl(0 70% 85%); background: hsl(0 85% 98%); color: hsl(0 50% 22%); font-size: 0.86rem; }
+.cc-diag p { margin: 0; }
+.cc-diag-titulo { font-size: 0.95rem; }
+.cc-diag-pasos { margin: 0; padding-left: 1.2rem; display: grid; gap: 0.15rem; }
+.cc-diag-tecnico summary { cursor: pointer; font-size: 0.78rem; color: hsl(0 30% 35%); }
+.cc-diag-tecnico code { display: block; margin-top: 0.3rem; font-size: 0.74rem; white-space: pre-wrap; overflow-wrap: anywhere; color: hsl(0 20% 30%); }
+.cc-cola-resumen { margin: 0; display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; font-size: 0.86rem; }
+.cc-cola { list-style: none; margin: 0; padding: 0; display: grid; border: 1px solid var(--dsh-borde); border-radius: 10px; background: #fff; overflow: hidden; }
+.cc-cola li { display: grid; grid-template-columns: auto 1fr auto; gap: 0.6rem; align-items: center; padding: 0.45rem 0.7rem; font-size: 0.82rem; }
+.cc-cola li + li { border-top: 1px solid var(--dsh-borde); }
+.cc-cola time { font-variant-numeric: tabular-nums; font-weight: 600; white-space: nowrap; }
+.cc-cola-titulo { min-width: 0; display: grid; overflow-wrap: anywhere; }
+.cc-cola-titulo small { color: var(--color-text-muted); font-size: 0.74rem; }
+.cc-cola-redes { font-size: 0.72rem; color: var(--color-text-muted); white-space: nowrap; }
+.cc-cola-atrasada { background: hsl(38 95% 97%); }
+.cc-cola-atrasada time { color: hsl(28 85% 32%); }

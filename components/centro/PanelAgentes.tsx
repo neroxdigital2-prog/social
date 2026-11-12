@@ -4,11 +4,58 @@ import { useCallback, useEffect, useState } from "react";
 import { ArrowRight, RefreshCw, X } from "lucide-react";
 import { TEXTO_ESTADO, fechaHoraBD, haceTiempo } from "@/lib/agentes";
 import { IncidenciaTarjeta } from "@/components/centro/IncidenciaTarjeta";
-import type { AgenteVista, DatosCentro, IncidenciaVista } from "@/components/centro/tipos";
+import type { AgenteVista, ColaVista, DatosCentro, DiagnosticoVista, IncidenciaVista } from "@/components/centro/tipos";
 
 const LUZ: Record<AgenteVista["estado"], string> = { OK: "ok", AVISO: "aviso", ERROR: "error", OFF: "off" };
 
-function DetalleAgente({ agente, onCerrar, onCambio }: { agente: AgenteVista; onCerrar: () => void; onCambio: () => void }) {
+const RED_CORTA: Record<string, string> = { FACEBOOK: "FB", INSTAGRAM: "IG", GOOGLE: "GB", LINKEDIN: "IN", TWITTER: "X" };
+
+function fechaCorta(f: string) {
+  return `${f.slice(8, 10)}/${f.slice(5, 7)} ${f.slice(11, 16)}`;
+}
+
+function ListaCola({ cola }: { cola: ColaVista }) {
+  if (!cola.total) return <p className="dsh-muted">No hay publicaciones programadas.</p>;
+  return (
+    <>
+      <p className="cc-cola-resumen">
+        📅 <strong>{cola.total}</strong> programada(s) del {fechaCorta(cola.desde!)} al {fechaCorta(cola.hasta!)}
+        {cola.atrasadas > 0 && <span className="cc-chip cc-chip-error">{cola.atrasadas} atrasada(s)</span>}
+      </p>
+      <ol className="cc-cola">
+        {cola.proximas.map((p) => (
+          <li key={p.id} className={p.atrasada ? "cc-cola-atrasada" : undefined}>
+            <time dateTime={p.fecha.replace(" ", "T")}>{fechaCorta(p.fecha)}</time>
+            <span className="cc-cola-titulo">
+              {p.titulo}
+              <small>{p.empresaNombre}</small>
+            </span>
+            <span className="cc-cola-redes">{p.redes.map((r) => RED_CORTA[r] || r).join(" · ") || "—"}</span>
+          </li>
+        ))}
+      </ol>
+      {cola.total > cola.proximas.length && <p className="dsh-muted">… y {cola.total - cola.proximas.length} más en el <a href="/calendario">Calendario</a>.</p>}
+    </>
+  );
+}
+
+function AvisoDiagnostico({ d }: { d: DiagnosticoVista }) {
+  return (
+    <div className="cc-diag" role="alert">
+      <p className="cc-diag-titulo">🔴 <strong>{d.titulo}</strong></p>
+      <p className="cc-diag-causa"><strong>Por qué:</strong> {d.causa}</p>
+      <ol className="cc-diag-pasos">{d.pasos.map((p) => <li key={p}>{p}</li>)}</ol>
+      {d.tecnico && (
+        <details className="cc-diag-tecnico">
+          <summary>Detalle técnico</summary>
+          <code>{d.tecnico}</code>
+        </details>
+      )}
+    </div>
+  );
+}
+
+function DetalleAgente({ agente, cola, onCerrar, onCambio }: { agente: AgenteVista; cola?: ColaVista | null; onCerrar: () => void; onCambio: () => void }) {
   const [incidencias, setIncidencias] = useState<IncidenciaVista[] | null>(null);
   const [resueltas, setResueltas] = useState<IncidenciaVista[]>([]);
 
@@ -49,6 +96,13 @@ function DetalleAgente({ agente, onCerrar, onCambio }: { agente: AgenteVista; on
         <ul className="cc-lista-detalle">
           {agente.detalle.map((d) => <li key={d}>{d}</li>)}
         </ul>
+      )}
+
+      {agente.id === "publicador" && cola && (
+        <>
+          <h4 className="cc-subtitulo">Cola de publicación</h4>
+          <ListaCola cola={cola} />
+        </>
       )}
 
       <h4 className="cc-subtitulo">Reporte de averías</h4>
@@ -102,7 +156,8 @@ export function PanelAgentes({
   }
 
   const agentes = datos?.agentes || [];
-  const operativos = agentes.filter((a) => a.estado === "OK" || a.estado === "OFF").length;
+  const operativos = agentes.filter((a) => a.estado === "OK").length;
+  const sinConfigurar = agentes.filter((a) => a.estado === "OFF").length;
   const averias = agentes.reduce((n, a) => n + a.abiertas, 0) + (datos?.otrasIncidencias || 0);
   const peor = agentes.some((a) => a.estado === "ERROR") ? "error" : agentes.some((a) => a.estado === "AVISO") ? "aviso" : "ok";
   const elegido = agentes.find((a) => a.id === seleccion) || null;
@@ -118,13 +173,20 @@ export function PanelAgentes({
               {!datos
                 ? "Comprobando agentes…"
                 : !datos.instalado
-                  ? "Vigilante sin instalar: sube vigilante.php y ejecuta vigilante.sql"
-                  : `${operativos}/${agentes.length} agentes operativos · ${averias ? `${averias} avería(s) abierta(s)` : "sin averías"} · última revisión ${haceTiempo(datos.latido?.segundosDesde)}`}
+                  ? `🔴 Vigilante caído: los agentes no se están revisando · ${datos.diagnostico?.titulo || "no responde"}`
+                  : `${operativos}/${agentes.length - sinConfigurar} agentes operativos${sinConfigurar ? ` (${sinConfigurar} sin configurar)` : ""} · ${averias ? `${averias} avería(s) abierta(s)` : "sin averías"} · última revisión ${haceTiempo(datos.latido?.segundosDesde)}`}
+              {datos?.cola && datos.cola.total > 0 && (
+                <>
+                  <br />
+                  📅 {datos.cola.total} publicación(es) programada(s) hasta el {fechaCorta(datos.cola.hasta!).slice(0, 5)} · próxima {fechaCorta(datos.cola.proximas[0].fecha)}
+                  {datos.cola.atrasadas > 0 && ` · ⚠️ ${datos.cola.atrasadas} atrasada(s)`}
+                </>
+              )}
             </p>
           </div>
         </div>
         <div className="dsh-cabecera-acciones">
-          <button type="button" className="dsh-boton dsh-boton-mini" onClick={revisarAhora} disabled={revisando || !datos?.instalado}>
+          <button type="button" className="dsh-boton dsh-boton-mini" onClick={revisarAhora} disabled={revisando || !datos}>
             <RefreshCw size={14} aria-hidden="true" className={revisando ? "dsh-girando" : undefined} />
             {revisando ? "Revisando…" : "Revisar ahora"}
           </button>
@@ -135,6 +197,8 @@ export function PanelAgentes({
           )}
         </div>
       </header>
+
+      {datos?.diagnostico && <AvisoDiagnostico d={datos.diagnostico} />}
 
       {(error || aviso) && <p role="status" className={error ? "dsh-alerta dsh-alerta-error" : "dsh-muted"}>{error || aviso}</p>}
 
@@ -164,7 +228,7 @@ export function PanelAgentes({
         )}
       </ul>
 
-      {elegido && <DetalleAgente key={elegido.id} agente={elegido} onCerrar={() => setSeleccion(null)} onCambio={() => recargar()} />}
+      {elegido && <DetalleAgente key={elegido.id} agente={elegido} cola={datos?.cola} onCerrar={() => setSeleccion(null)} onCambio={() => recargar()} />}
     </section>
   );
 }

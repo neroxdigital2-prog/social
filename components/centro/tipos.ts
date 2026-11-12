@@ -26,8 +26,36 @@ export interface DisponibilidadDia {
   errores: number;
 }
 
+export interface DiagnosticoVista {
+  titulo: string;
+  causa: string;
+  pasos: string[];
+  tecnico?: string;
+}
+
+export interface PublicacionCola {
+  id: string;
+  titulo: string;
+  empresaId: string;
+  empresaNombre: string;
+  fecha: string;
+  atrasada: boolean;
+  redes: string[];
+}
+
+export interface ColaVista {
+  total: number;
+  atrasadas: number;
+  desde: string | null;
+  hasta: string | null;
+  porEmpresa: { empresaId: string; empresaNombre: string; total: number; hasta: string | null }[];
+  proximas: PublicacionCola[];
+}
+
 export interface DatosCentro {
   instalado: boolean;
+  diagnostico?: DiagnosticoVista | null;
+  cola?: ColaVista | null;
   telegram: boolean;
   ahora?: string;
   latido?: { ultimaEjecucion: string | null; segundosDesde: number | null };
