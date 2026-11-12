@@ -6,6 +6,7 @@ import { AGENTES, NOMBRE_AGENTE, fechaHoraBD } from "@/lib/agentes";
 import { useCentro } from "@/components/centro/useCentro";
 import { PanelAgentes } from "@/components/centro/PanelAgentes";
 import { TelegramConexion } from "@/components/centro/TelegramConexion";
+import { HistorialDisponibilidad } from "@/components/centro/HistorialDisponibilidad";
 import { EmpresasActivas } from "@/components/centro/EmpresasActivas";
 import { IncidenciaTarjeta, textoEvento } from "@/components/centro/IncidenciaTarjeta";
 import type { DisponibilidadDia, EventoIncidencia, IncidenciaVista } from "@/components/centro/tipos";
@@ -161,18 +162,19 @@ function Disponibilidad({ filas }: { filas: DisponibilidadDia[] }) {
   return (
     <section className="dsh-card" aria-labelledby="cc-disp-titulo">
       <div>
-        <h2 id="cc-disp-titulo">Disponibilidad · {historial ? "últimos 7 días" : "hoy"}</h2>
+        <h2 id="cc-disp-titulo">Disponibilidad · {historial ? "historial" : "hoy"}</h2>
         <p className="dsh-muted">% de revisiones en las que cada agente estaba operativo.</p>
         <button type="button" className="dsh-btn" aria-expanded={historial} onClick={() => setHistorial((v) => !v)}>
-          {historial ? "Ocultar historial" : "Ver historial (7 días)"}
+          {historial ? "Ocultar historial" : "Ver historial"}
         </button>
       </div>
+      {historial ? <HistorialDisponibilidad /> : (
       <div className="cc-tabla-scroll">
         <table className="cc-tabla cc-disp">
           <thead>
             <tr>
               <th scope="col">Agente</th>
-              {dias.map((d, i) => (historial || i === 6) && <th key={d} scope="col">{d.slice(8, 10)}/{d.slice(5, 7)}</th>)}
+              {dias.map((d, i) => i === 6 && <th key={d} scope="col">{d.slice(8, 10)}/{d.slice(5, 7)}</th>)}
               <th scope="col">Media 7d</th>
             </tr>
           </thead>
@@ -185,7 +187,7 @@ function Disponibilidad({ filas }: { filas: DisponibilidadDia[] }) {
                 <tr key={a.id}>
                   <th scope="row"><span aria-hidden="true">{a.icono}</span> {a.nombre}</th>
                   {celdas.map((c, i) => {
-                    if (!historial && i !== 6) return null;
+                    if (i !== 6) return null;
                     const nivel = !c || c.pct === null ? "nd" : c.pct >= 99 ? "ok" : c.pct >= 90 ? "aviso" : "error";
                     return (
                       <td key={dias[i]}>
@@ -202,6 +204,7 @@ function Disponibilidad({ filas }: { filas: DisponibilidadDia[] }) {
           </tbody>
         </table>
       </div>
+      )}
     </section>
   );
 }
