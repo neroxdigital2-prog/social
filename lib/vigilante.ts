@@ -9,7 +9,7 @@ import { createHash } from "crypto";
 import { urlBridge } from "@/lib/bridgeUrl";
 import { revisarTodosLosBridges } from "@/lib/salud";
 import { diagnosticarError } from "@/lib/diagnosticoRedes";
-import { avisarOperador, chatsOperador, escaparHtml, llamarTelegram, tokenBot, telegramConfigurado, type BotonTelegram } from "@/lib/telegram";
+import { asegurarWebhook, avisarOperador, destinosOperador, escaparHtml, llamarTelegram, tokenBot, telegramConfigurado, type BotonTelegram } from "@/lib/telegram";
 import { NOMBRE_AGENTE, duracion, fechaHoraBD, type EstadoAgente } from "@/lib/agentes";
 import { generarImagen } from "@/lib/generadorImagen";
 import { emailConfigurado, enviarEmail, htmlEmail } from "@/lib/email";
@@ -444,14 +444,19 @@ async function revisarWhatsApp(ultimaActividad: string | null): Promise<AgenteRe
   return { agente: "whatsapp", estado: "OK", mensaje: "API de WhatsApp operativa", ultimaActividad };
 }
 
-async function revisarTelegram(): Promise<AgenteRevisado> {
-  if (!tokenBot()) return { agente: "telegram", estado: "AVISO", mensaje: "Falta TELEGRAM_BOT_TOKEN: los avisos solo se ven en el Dashboard" };
-  const yo = await llamarTelegram<{ username: string }>("getMe", {});
-  if (!yo.ok) return { agente: "telegram", estado: "ERROR", mensaje: "El token del bot no es válido", detalle: [yo.description || ""] };
-  if (!chatsOperador().length) return { agente: "telegram", estado: "AVISO", mensaje: `@${yo.result?.username}: falta TELEGRAM_CHAT_ID` };
-  const destinos = await Promise.all(chatsOperador().map(destinoTelegram));
+async function revisarTelegram(base: string): Promise<AgenteRevisado> {
+  if (!tokenBot()) return { agente: "telegram", estado: "AVISO", mensaje: "Falta TELEGRAM_BOT_TOKEN en Vercel: los avisos solo se ven en el Dashboard" };
+  const wh = await asegurarWebhook(base);
+  if (!wh.ok && !wh.bot) return { agente: "telegram", estado: "ERROR", mensaje: wh.error || "El bot no responde", detalle: [wh.error || ""] };
+  const destinos = await destinosOperador(true);
   const email = emailConfigurado() ? "✅ Email de escalado configurado" : "⚠️ Email de escalado sin configurar (SMTP_USER, SMTP_PASS, AVISOS_EMAIL_PARA)";
-  return { agente: "telegram", estado: "OK", mensaje: `@${yo.result?.username} → ${destinos.length} destinatario(s)`, detalle: [...destinos, email] };
+  const lineas = [
+    wh.cambiado ? "🛠️ Webhook del bot registrado automáticamente" : wh.ok ? "✅ Webhook del bot correcto" : `❌ Webhook: ${wh.error}`,
+    ...destinos.map((d) => `📨 ${d.nombre || "chat"} · ${d.chatId}${d.origen === "VERCEL" ? " (Vercel)" : ""}`),
+    email,
+  ];
+  if (!destinos.length) return { agente: "telegram", estado: "AVISO", mensaje: `@${wh.bot}: ningún Telegram vinculado (Centro de control → Vincular mi Telegram)`, detalle: lineas };
+  return { agente: "telegram", estado: wh.ok ? "OK" : "AVISO", mensaje: `@${wh.bot} → ${destinos.length} destinatario(s)`, detalle: lineas };
 }
 
 // ───────────────────────── reparaciones automáticas ─────────────────────────
@@ -563,7 +568,7 @@ export async function ejecutarVigilante(base: string, opciones: { revisarTokens?
     problemas: [],
     resueltos: [],
     agentes: [],
-    telegram: telegramConfigurado(),
+    telegram: await telegramConfigurado(),
   };
   const problemas: Problema[] = [];
   const revisados = new Set<string>(); // prefijos de clave revisados en esta pasada (para dar por resueltas las que desaparecen)
@@ -807,7 +812,7 @@ export async function ejecutarVigilante(base: string, opciones: { revisarTokens?
 
     const iaTexto = await revisarIATexto();
     const geminiError = iaTexto.detalle?.find((d) => d.includes("Gemini"))?.startsWith("❌") ? iaTexto.detalle.find((d) => d.includes("Gemini"))!.replace("❌ Gemini: ", "") : null;
-    const extra = await Promise.all([revisarIAImagen(geminiError), revisarReels(geminiError), revisarWhatsApp(actividad.whatsapp), revisarTelegram()]);
+    const extra = await Promise.all([revisarIAImagen(geminiError), revisarReels(geminiError), revisarWhatsApp(actividad.whatsapp), revisarTelegram(base)]);
     for (const a of [iaTexto, ...extra]) {
       informe.agentes.push(a);
       revisados.add(`agente:${a.agente}`);

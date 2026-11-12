@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import { ArrowRight, RefreshCw, X } from "lucide-react";
 import { TEXTO_ESTADO, fechaHoraBD, haceTiempo } from "@/lib/agentes";
 import { IncidenciaTarjeta } from "@/components/centro/IncidenciaTarjeta";
+import { TelegramConexion } from "@/components/centro/TelegramConexion";
 import type { AgenteVista, ColaVista, DatosCentro, DiagnosticoVista, IncidenciaVista } from "@/components/centro/tipos";
 
 const LUZ: Record<AgenteVista["estado"], string> = { OK: "ok", AVISO: "aviso", ERROR: "error", OFF: "off" };
@@ -96,6 +97,13 @@ function DetalleAgente({ agente, cola, onCerrar, onCambio }: { agente: AgenteVis
         <ul className="cc-lista-detalle">
           {agente.detalle.map((d) => <li key={d}>{d}</li>)}
         </ul>
+      )}
+
+      {agente.id === "telegram" && (
+        <>
+          <h4 className="cc-subtitulo">Conexión con Telegram</h4>
+          <TelegramConexion onCambio={onCambio} />
+        </>
       )}
 
       {agente.id === "publicador" && cola && (

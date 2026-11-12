@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { waitUntil } from "@vercel/functions";
-import { chatsOperador, enviarMensaje, escaparHtml, llamarTelegram, secretoWebhook } from "@/lib/telegram";
+import { codigoVinculoValido, enviarMensaje, esChatOperador, escaparHtml, llamarTelegram, secretoWebhook, vincularChat } from "@/lib/telegram";
 import { bridgeVigilante, ejecutarVigilante, enviarInformeSemanal, reintentarEnvios, resolverIncidencia, resumenInforme, silenciarIncidencia } from "@/lib/vigilante";
 import { urlApp } from "@/lib/urlApp";
 
@@ -8,7 +8,7 @@ export const maxDuration = 60;
 export const dynamic = "force-dynamic";
 
 interface Actualizacion {
-  message?: { chat: { id: number }; text?: string };
+  message?: { chat: { id: number }; text?: string; from?: { first_name?: string; last_name?: string; username?: string } };
   callback_query?: { id: string; data?: string; from?: { first_name?: string; last_name?: string; username?: string }; message?: { chat: { id: number }; message_id: number; text?: string } };
 }
 
@@ -16,7 +16,7 @@ const AYUDA =
   "🛡️ <b>Vigilante de Nerox Social IA</b>\n\nCada 15 min reviso IONOS, publicaciones, envíos a redes y conexiones.\n• Lo que puedo arreglar (reintentos, imagen que falta, Reel → imagen, límites, tokens que caducan) lo arreglo solo y te lo cuento.\n• Lo que necesita una persona te lo aviso con la causa y los pasos.\n• De noche (23–8) solo te aviso de lo crítico; lo demás va en el parte de las 09:00.\n• Si una avería crítica no se atiende en 30 min, insisto y mando email.\n\n/estado — revisar ahora\n/incidencias — ver abiertas\n/informe — informe de 7 días\n/id — tu chat_id";
 
 function autorizado(chatId: number | string) {
-  return chatsOperador().includes(String(chatId));
+  return esChatOperador(chatId);
 }
 
 export async function POST(req: NextRequest) {
@@ -30,7 +30,7 @@ export async function POST(req: NextRequest) {
   if (upd.callback_query) {
     const cq = upd.callback_query;
     const chatId = cq.message?.chat.id;
-    if (!chatId || !autorizado(chatId)) {
+    if (!chatId || !(await autorizado(chatId))) {
       await llamarTelegram("answerCallbackQuery", { callback_query_id: cq.id, text: "No autorizado" });
       return NextResponse.json({ ok: true });
     }
@@ -68,18 +68,38 @@ export async function POST(req: NextRequest) {
   const msg = upd.message;
   if (!msg?.text) return NextResponse.json({ ok: true });
   const chatId = msg.chat.id;
-  const comando = msg.text.trim().split(/[\s@]/)[0].toLowerCase();
+  const [comandoBruto, parametro = ""] = msg.text.trim().split(/\s+/);
+  const comando = comandoBruto.split("@")[0].toLowerCase();
 
-  if (comando === "/start" || comando === "/id") {
+  // Vinculación desde el Centro de control: t.me/bot?start=CODIGO
+  if (comando === "/start" && parametro && codigoVinculoValido(parametro)) {
+    const nombre = [msg.from?.first_name, msg.from?.last_name].filter(Boolean).join(" ") || null;
+    const ok = await vincularChat({
+      chatId: String(chatId),
+      nombre: nombre || undefined,
+      usuario: msg.from?.username || undefined,
+      vinculadoPor: "Centro de control",
+    });
     await enviarMensaje(
       chatId,
-      autorizado(chatId)
-        ? `✅ Conectado. Tu chat_id es <code>${chatId}</code>.\n\n${AYUDA}`
-        : `Tu chat_id es <code>${chatId}</code>\n\nGuárdalo en Vercel como <b>TELEGRAM_CHAT_ID</b>, haz Redeploy y vuelve a abrir /api/telegram/configurar.`
+      ok
+        ? `✅ <b>Telegram vinculado${nombre ? `, ${escaparHtml(nombre)}` : ""}.</b>\nA partir de ahora te llegan aquí los avisos del vigilante.\n\n${AYUDA}`
+        : "❌ No pude guardar la vinculación (¿vigilante.php y vigilante.sql actualizados en IONOS?). Inténtalo de nuevo desde el Centro de control."
     );
     return NextResponse.json({ ok: true });
   }
-  if (!autorizado(chatId)) return NextResponse.json({ ok: true });
+
+  const esOperador = await autorizado(chatId);
+  if (comando === "/start" || comando === "/id") {
+    await enviarMensaje(
+      chatId,
+      esOperador
+        ? `✅ Conectado. Tu chat_id es <code>${chatId}</code>.\n\n${AYUDA}`
+        : `👋 Este bot es privado.\nPara recibir avisos, entra en <b>social.nerox.es → Centro de control</b> y pulsa «Vincular mi Telegram».\n\n(Tu chat_id: <code>${chatId}</code>)`
+    );
+    return NextResponse.json({ ok: true });
+  }
+  if (!esOperador) return NextResponse.json({ ok: true });
 
   if (comando === "/estado") {
     await enviarMensaje(chatId, "🔎 Revisando el sistema…");

@@ -5,6 +5,7 @@ import { RefreshCw } from "lucide-react";
 import { AGENTES, NOMBRE_AGENTE, fechaHoraBD } from "@/lib/agentes";
 import { useCentro } from "@/components/centro/useCentro";
 import { PanelAgentes } from "@/components/centro/PanelAgentes";
+import { TelegramConexion } from "@/components/centro/TelegramConexion";
 import { IncidenciaTarjeta, textoEvento } from "@/components/centro/IncidenciaTarjeta";
 import type { DisponibilidadDia, EventoIncidencia, IncidenciaVista } from "@/components/centro/tipos";
 
@@ -214,6 +215,13 @@ export function CentroControl() {
   return (
     <>
       <PanelAgentes datos={datos} error={error} recargar={recargar} />
+      <section className="dsh-card" aria-labelledby="cc-tg-titulo">
+        <div>
+          <h2 id="cc-tg-titulo">📨 Avisos por Telegram</h2>
+          <p className="dsh-muted">Quién recibe los avisos del vigilante. Vincula tu Telegram con un clic, sin tocar Vercel.</p>
+        </div>
+        <TelegramConexion onCambio={recargar} />
+      </section>
       <Incidencias onCambio={recargar} />
       <div className="dsh-rejilla">
         <div className="dsh-columna-principal">

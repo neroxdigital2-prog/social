@@ -147,7 +147,7 @@ export async function GET() {
   return NextResponse.json({
     instalado,
     diagnostico,
-    telegram: telegramConfigurado(),
+    telegram: await telegramConfigurado(),
     config: configAvisos(),
     ahora: lectura?.ahora,
     latido: lectura?.latido || { ultimaEjecucion: null, segundosDesde: null },

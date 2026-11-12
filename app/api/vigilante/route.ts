@@ -16,7 +16,7 @@ export async function GET() {
   const latido = await bridgeVigilante<LatidoVigilante>("latido_leer");
   return NextResponse.json({
     instalado: !!latido && !("error" in (latido as object)),
-    telegram: telegramConfigurado(),
+    telegram: await telegramConfigurado(),
     ...(latido || {}),
   });
 }

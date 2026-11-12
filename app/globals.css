@@ -1636,3 +1636,14 @@ select option {
 .cc-cola-redes { font-size: 0.72rem; color: var(--color-text-muted); white-space: nowrap; }
 .cc-cola-atrasada { background: hsl(38 95% 97%); }
 .cc-cola-atrasada time { color: hsl(28 85% 32%); }
+
+/* Centro de control: conexión con Telegram */
+.cc-tg { display: grid; gap: 0.6rem; font-size: 0.88rem; }
+.cc-tg p { margin: 0; }
+.cc-tg-estado { display: flex; flex-wrap: wrap; align-items: center; gap: 0.4rem; }
+.cc-tg-destinos { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.4rem; }
+.cc-tg-destinos li { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; padding: 0.5rem 0.7rem; border: 1px solid var(--dsh-borde); border-radius: 10px; background: #fff; }
+.cc-tg-destinos li > span { min-width: 0; display: grid; overflow-wrap: anywhere; }
+.cc-tg-destinos small { color: var(--color-text-muted); font-size: 0.74rem; }
+.cc-tg-btn { display: inline-flex; align-items: center; gap: 0.4rem; }
+.cc-tg-espera { padding: 0.5rem 0.7rem; border-radius: 8px; background: hsl(210 90% 96%); color: hsl(215 60% 28%); }
