@@ -1493,3 +1493,29 @@ select option {
 .cm-publicar { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: center; }
 .cm-publicar .btn-primary { display: inline-flex; align-items: center; gap: 0.4rem; }
 .cm-publicar input[type="datetime-local"] { padding: 0.5rem 0.6rem; border: 1px solid hsl(240 6% 85%); border-radius: 9px; font: inherit; }
+
+/* ═══════════ Dashboard: vigilante automático ═══════════ */
+.vg-titulo { display: inline-flex; align-items: center; gap: 0.45rem; margin: 0; font-size: 1rem; }
+.vg-titulo svg { color: var(--color-primary); }
+.vg-insignia { display: inline-flex; align-items: center; gap: 0.45rem; padding: 0.25rem 0.65rem; border-radius: 999px; font-size: 0.78rem; font-weight: 700; }
+.vg-insignia-activo { background: hsl(142 70% 94%); color: hsl(142 72% 22%); }
+.vg-insignia-retrasado { background: hsl(38 95% 92%); color: hsl(28 85% 28%); }
+.vg-insignia-detenido, .vg-insignia-sin-instalar { background: hsl(0 85% 95%); color: hsl(0 70% 35%); }
+.vg-latido { position: relative; width: 8px; height: 8px; border-radius: 50%; background: currentColor; }
+.vg-insignia-activo .vg-latido::after { content: ""; position: absolute; inset: 0; border-radius: 50%; background: currentColor; animation: vg-pulso 1.8s ease-out infinite; }
+@keyframes vg-pulso { from { transform: scale(1); opacity: 0.6; } to { transform: scale(2.8); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .vg-insignia-activo .vg-latido::after { animation: none; } }
+.vg-activo { border-color: hsl(142 45% 80%); }
+.vg-detenido, .vg-sin-instalar { border-color: hsl(0 70% 85%); }
+.vg-linea { margin: 0; font-size: 0.9rem; }
+.vg-chips { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 0.4rem; }
+.vg-chip { padding: 0.2rem 0.6rem; border-radius: 999px; font-size: 0.76rem; background: var(--dsh-fondo-suave); color: var(--color-text-muted); }
+.vg-chip-ok { background: hsl(142 70% 95%); color: hsl(142 72% 24%); }
+.vg-chip-aviso { background: hsl(38 95% 93%); color: hsl(28 85% 30%); }
+.vg-detalle-btn { display: inline-flex; align-items: center; gap: 0.25rem; background: none; border: 0; padding: 0; font: inherit; font-size: 0.85rem; cursor: pointer; }
+.vg-detalle-btn[aria-expanded="true"] .vg-chevron { transform: rotate(180deg); }
+.vg-chevron { transition: transform 0.2s ease; }
+.vg-detalle { display: grid; gap: 0.3rem; padding-top: 0.6rem; border-top: 1px solid var(--dsh-borde); font-size: 0.84rem; }
+.vg-detalle h3 { margin: 0.35rem 0 0; font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--color-text-muted); }
+.vg-detalle ul { margin: 0; padding-left: 1.1rem; display: grid; gap: 0.15rem; }
+.vg-sin-instalar code, .vg-detenido code { font-size: 0.8em; }

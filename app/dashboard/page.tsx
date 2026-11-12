@@ -10,6 +10,7 @@ import { GraficaActividad } from "@/components/dashboard/GraficaActividad";
 import { ProximasPublicaciones } from "@/components/dashboard/ProximasPublicaciones";
 import { PanelAlertas } from "@/components/dashboard/PanelAlertas";
 import { EstadoRedes } from "@/components/dashboard/EstadoRedes";
+import { EstadoVigilante } from "@/components/dashboard/EstadoVigilante";
 
 export const dynamic = "force-dynamic";
 
@@ -66,6 +67,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: { 
           <ProximasPublicaciones items={datos.proximas} empresaId={datos.empresaId} />
         </div>
         <aside className="dsh-columna-lateral" aria-label="Estado">
+          <EstadoVigilante />
           <PanelAlertas alertas={datos.alertas} ocultas={datos.alertasOcultas} empresaId={datos.empresaId} />
           <EstadoRedes redes={datos.redes} empresaId={datos.empresaId} />
         </aside>

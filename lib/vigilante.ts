@@ -376,7 +376,26 @@ export async function ejecutarVigilante(base: string, opciones: { revisarTokens?
     await avisarOperador(`🛠️ <b>Corregido automáticamente</b>\n\n${informe.corregido.map((c) => `• ${escaparHtml(c)}`).join("\n")}`);
   }
 
+  // Latido: el Dashboard muestra "Activo · última revisión hace X min"
+  await bridgeVigilante("latido_guardar", { informe });
+
+  // Parte diario por Telegram (primera pasada desde las 09:00, hora de Madrid) para saber que sigue vivo
+  const madrid = new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Madrid", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", hour12: false }).formatToParts(new Date());
+  const parte = (t: string) => madrid.find((x) => x.type === t)?.value || "";
+  if (Number(parte("hour")) >= 9) {
+    const diario = await bridgeVigilante<{ enviar?: boolean }>("diario_pendiente", { fecha: `${parte("year")}-${parte("month")}-${parte("day")}` });
+    if (diario?.enviar) await avisarOperador(`☀️ <b>Buenos días.</b> El vigilante sigue activo.\n\n${resumenInforme(informe).split("\n").slice(2).join("\n")}`);
+  }
+
   return informe;
+}
+
+export interface LatidoVigilante {
+  ultimaEjecucion: string | null;
+  segundosDesde: number | null;
+  informe: InformeVigilante | null;
+  abiertas: number;
+  silenciadas: number;
 }
 
 export function resumenInforme(i: InformeVigilante): string {
