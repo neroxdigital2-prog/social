@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { z } from "zod";
 import { generarReel } from "@/lib/reel";
+import { urlBridge } from "@/lib/bridgeUrl";
 
 // Render de vídeo: guion IA + voz + metraje Pexels + FFmpeg. Necesita tiempo.
 export const maxDuration = 300;
@@ -10,8 +11,8 @@ export const dynamic = "force-dynamic";
 const BRIDGE_SECRET = process.env.BRIDGE_SECRET!;
 const BRIDGE_LIST = process.env.IONOS_BRIDGE_URL_PUBLICACIONES_LIST!;
 const BRIDGE_EMPRESAS = process.env.IONOS_BRIDGE_URL_EMPRESAS_LIST!;
-const BRIDGE_SUBIR_VIDEO = process.env.IONOS_BRIDGE_URL_PUBLICACION_SUBIR_VIDEO!;
-const BRIDGE_VIDEO_GUARDAR = process.env.IONOS_BRIDGE_URL_PUBLICACION_VIDEO_GUARDAR!;
+const BRIDGE_SUBIR_VIDEO = urlBridge("IONOS_BRIDGE_URL_PUBLICACION_SUBIR_VIDEO")!;
+const BRIDGE_VIDEO_GUARDAR = urlBridge("IONOS_BRIDGE_URL_PUBLICACION_VIDEO_GUARDAR")!;
 
 interface PublicacionBridge {
   id: string;

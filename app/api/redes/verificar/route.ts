@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { diagnosticarError, type Diagnostico } from "@/lib/diagnosticoRedes";
+import { urlBridge } from "@/lib/bridgeUrl";
 
 // Comprueba EN VIVO cada red conectada de una empresa (solo lectura, no publica nada)
 export const maxDuration = 30;
@@ -8,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 const GRAPH = "https://graph.facebook.com/v21.0";
 const BRIDGE_SECRET = process.env.BRIDGE_SECRET!;
-const BRIDGE_CREDENCIALES = process.env.IONOS_BRIDGE_URL_REDES_CREDENCIALES;
+const BRIDGE_CREDENCIALES = urlBridge("IONOS_BRIDGE_URL_REDES_CREDENCIALES");
 
 interface Credencial {
   red: string;

@@ -1,3 +1,5 @@
+import { urlBridge } from "@/lib/bridgeUrl";
+
 // Registro de actividad del CRM (servidor). Nunca bloquea ni rompe la acción
 // principal: si el bridge falla, solo se escribe en el log de Vercel.
 
@@ -21,7 +23,7 @@ export interface EntradaRegistro {
 }
 
 export async function registrarActividad(e: EntradaRegistro): Promise<void> {
-  const url = process.env.IONOS_BRIDGE_URL_REGISTRO_ACTIVIDAD;
+  const url = urlBridge("IONOS_BRIDGE_URL_REGISTRO_ACTIVIDAD");
   if (!url) return;
   try {
     const res = await fetch(url, {

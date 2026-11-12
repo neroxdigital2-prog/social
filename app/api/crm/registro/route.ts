@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { z } from "zod";
 import { registrarActividad, TIPOS_ACTIVIDAD } from "@/lib/registroActividad";
+import { urlBridge } from "@/lib/bridgeUrl";
 
 export const dynamic = "force-dynamic";
 
-const BRIDGE = process.env.IONOS_BRIDGE_URL_REGISTRO_ACTIVIDAD;
+const BRIDGE = urlBridge("IONOS_BRIDGE_URL_REGISTRO_ACTIVIDAD");
 const BRIDGE_SECRET = process.env.BRIDGE_SECRET!;
 
 async function llamar(cuerpo: Record<string, unknown>) {

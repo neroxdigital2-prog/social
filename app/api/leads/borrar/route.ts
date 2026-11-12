@@ -2,8 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { z } from "zod";
 import { registrarActividad } from "@/lib/registroActividad";
+import { urlBridge } from "@/lib/bridgeUrl";
 
-const BRIDGE = process.env.IONOS_BRIDGE_URL_LEADS_BORRAR;
+const BRIDGE = urlBridge("IONOS_BRIDGE_URL_LEADS_BORRAR");
 const BRIDGE_SECRET = process.env.BRIDGE_SECRET!;
 
 const BodySchema = z.object({

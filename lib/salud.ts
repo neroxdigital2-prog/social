@@ -6,6 +6,8 @@
  * /api/cron/salud (revision automatica periodica que avisa por WhatsApp).
  */
 
+import { urlBridge } from "@/lib/bridgeUrl";
+
 const BRIDGE_SECRET = process.env.BRIDGE_SECRET;
 
 export const VARIABLES_BRIDGE = [
@@ -81,7 +83,7 @@ export interface ResumenSalud {
 }
 
 async function revisarBridge(nombreVariable: string): Promise<ResultadoBridge> {
-  const url = process.env[nombreVariable];
+  const url = urlBridge(nombreVariable);
 
   if (!url) {
     return { nombre: nombreVariable, url: null, estado: "SIN_VARIABLE", statusHttp: null, tiempoMs: null };
