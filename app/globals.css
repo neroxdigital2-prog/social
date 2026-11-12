@@ -1452,3 +1452,44 @@ select option {
   .reg-tabla th { background: #eee !important; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
 .crm-item-info { flex: 1 1 220px; min-width: 0; }
+
+/* ═══════════ Generador: publicación manual ═══════════ */
+.cm { display: grid; gap: 1.1rem; }
+.cm-modos { display: grid; gap: 0.75rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 230px), 1fr)); }
+.cm-modo { display: grid; justify-items: start; gap: 0.25rem; padding: 1rem 1.1rem; border-radius: 14px; border: 2px solid hsl(240 6% 90%); background: #fff; font: inherit; text-align: left; cursor: pointer; color: var(--color-text); transition: border-color 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease; }
+.cm-modo:hover { border-color: hsl(240 5% 75%); transform: translateY(-1px); }
+.cm-modo[aria-checked="true"] { border-color: var(--color-primary); box-shadow: 0 0 0 4px hsl(var(--color-primary-h) var(--color-primary-s) 50% / 0.12); }
+.cm-modo svg { color: var(--color-primary); }
+.cm-modo span { font-size: 0.82rem; color: var(--color-text-muted); }
+.cm-modo:focus-visible, .cm-subir:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+.cm-pasos { display: flex; flex-wrap: wrap; gap: 0.4rem 1rem; list-style: none; margin: 0; padding: 0; font-size: 0.82rem; color: var(--color-text-muted); }
+.cm-pasos li { display: inline-flex; align-items: center; gap: 0.35rem; }
+.cm-pasos li span { display: grid; place-items: center; width: 22px; height: 22px; border-radius: 50%; background: var(--color-surface); font-weight: 700; font-size: 0.75rem; }
+.cm-paso-activo { color: var(--color-text); font-weight: 700; }
+.cm-paso-activo span { background: var(--color-primary) !important; color: #fff; }
+.cm-paso-hecho span { background: hsl(142 65% 32%) !important; color: #fff; }
+.cm-rejilla { display: flex; flex-wrap: wrap; gap: 1.25rem; align-items: flex-start; }
+.cm-col-media { flex: 0 1 240px; display: grid; gap: 0.6rem; margin-inline: auto; }
+.cm-col-texto { flex: 999 1 320px; display: grid; gap: 0.85rem; min-width: 0; }
+.cm-subir, .cm-preview { width: 100%; aspect-ratio: 9 / 16; border-radius: 14px; }
+.cm-subir { display: grid; place-content: center; justify-items: center; gap: 0.4rem; border: 2px dashed hsl(240 5% 78%); background: var(--color-surface); color: var(--color-text-muted); font: inherit; cursor: pointer; text-align: center; padding: 1rem; transition: border-color 0.15s ease, background-color 0.15s ease; }
+.cm-subir:hover { border-color: var(--color-primary); background: #fff; }
+.cm-subir small { font-size: 0.72rem; }
+.cm-preview { object-fit: cover; background: #000; display: block; }
+.cm-preview-vacio { display: grid; place-content: center; justify-items: center; gap: 0.4rem; background: var(--color-surface); color: var(--color-text-muted); font-size: 0.85rem; }
+.cm-btn-ia { justify-self: start; color: var(--color-primary); border-color: hsl(var(--color-primary-h) var(--color-primary-s) 50% / 0.35); }
+.cm-subtitulo { margin: 0; font-size: 1rem; }
+.cm-opcion { display: flex; align-items: flex-start; gap: 0.6rem; padding: 0.75rem 0.85rem; border: 1px solid hsl(240 6% 88%); border-radius: 12px; cursor: pointer; }
+.cm-opcion input { width: 18px; height: 18px; margin-top: 2px; accent-color: var(--color-primary); }
+.cm-opcion svg { margin-top: 2px; color: var(--color-primary); flex-shrink: 0; }
+.cm-opcion span { display: grid; gap: 0.1rem; }
+.cm-opcion small { font-size: 0.78rem; color: var(--color-text-muted); }
+.cm-acciones { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; }
+.cm-final { display: grid; gap: 1rem; }
+.cm-redes { border: 1px solid hsl(240 6% 88%); border-radius: 12px; padding: 0.75rem 1rem; display: flex; flex-wrap: wrap; gap: 0.5rem 1.2rem; margin: 0; }
+.cm-redes legend { font-weight: 700; font-size: 0.85rem; padding: 0 0.3rem; }
+.cm-red { display: inline-flex; align-items: center; gap: 0.4rem; font-size: 0.9rem; cursor: pointer; }
+.cm-red input { width: 18px; height: 18px; accent-color: var(--color-primary); }
+.cm-publicar { display: flex; flex-wrap: wrap; gap: 0.6rem; align-items: center; }
+.cm-publicar .btn-primary { display: inline-flex; align-items: center; gap: 0.4rem; }
+.cm-publicar input[type="datetime-local"] { padding: 0.5rem 0.6rem; border: 1px solid hsl(240 6% 85%); border-radius: 9px; font: inherit; }

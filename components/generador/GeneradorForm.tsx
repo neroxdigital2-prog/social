@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { CreadorManual } from "@/components/generador/CreadorManual";
 
 interface EmpresaOpcion { id: string; nombre: string; }
 
@@ -19,6 +20,7 @@ export function GeneradorForm({
   const [tema, setTema] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [pestana, setPestana] = useState<"lote" | "manual">("manual");
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -43,14 +45,40 @@ export function GeneradorForm({
     router.refresh();
   }
 
+  const selectorEmpresa = (
+    <div className="field">
+      <label htmlFor="empresaId">Empresa</label>
+      <select id="empresaId" value={empresaId} onChange={(e) => setEmpresaId(e.target.value)} required>
+        {empresas.map((empresa) => <option key={empresa.id} value={empresa.id}>{empresa.nombre}</option>)}
+      </select>
+    </div>
+  );
+
+  const pestanas = (
+    <div className="crm-pestanas" role="tablist" aria-label="Modo del generador">
+      <button type="button" role="tab" aria-selected={pestana === "manual"} className="crm-pestana" onClick={() => setPestana("manual")}>
+        ✍️ Publicación manual
+      </button>
+      <button type="button" role="tab" aria-selected={pestana === "lote"} className="crm-pestana" onClick={() => setPestana("lote")}>
+        ⚡ Generar en lote con IA
+      </button>
+    </div>
+  );
+
+  if (pestana === "manual") {
+    return (
+      <div className="auth-form">
+        {pestanas}
+        {selectorEmpresa}
+        {empresaId && <CreadorManual key={empresaId} empresaId={empresaId} />}
+      </div>
+    );
+  }
+
   return (
     <form onSubmit={handleSubmit} className="auth-form" noValidate>
-      <div className="field">
-        <label htmlFor="empresaId">Empresa</label>
-        <select id="empresaId" value={empresaId} onChange={(e) => setEmpresaId(e.target.value)} required>
-          {empresas.map((empresa) => <option key={empresa.id} value={empresa.id}>{empresa.nombre}</option>)}
-        </select>
-      </div>
+      {pestanas}
+      {selectorEmpresa}
       <div className="field">
         <label htmlFor="tema">Tema o instrucciones (opcional)</label>
         <textarea
