@@ -1666,3 +1666,42 @@ select option {
 .cc-switch:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
 .cc-switch:disabled { opacity: 0.5; cursor: not-allowed; }
 @media (prefers-reduced-motion: reduce) { .cc-switch, .cc-switch span { transition: none; } }
+
+/* ═══ Rediseño: barra lateral + estilo profesional (modelo A) ═══ */
+:root {
+  --color-primary-h: 243;
+  --color-primary-s: 75%;
+  --color-primary-l: 59%;
+  --color-background: #f6f7fb;
+  --color-surface: #eef0f6;
+  --shadow-card: 0 1px 2px rgba(17, 24, 39, 0.05), 0 0 0 1px #e5e7eb;
+  --shadow-card-hover: 0 6px 20px rgba(17, 24, 39, 0.08), 0 0 0 1px #d9dce5;
+}
+body { font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, sans-serif; }
+.shell { display: flex; min-height: 100dvh; }
+.shell-main { flex: 1; min-width: 0; }
+.side {
+  width: 248px; flex: none; position: sticky; top: 0; height: 100dvh; overflow-y: auto;
+  background: #ffffff; border-right: 1px solid #e5e7eb; padding: 1.1rem 0.9rem; display: flex; flex-direction: column; gap: 0.5rem;
+}
+.side-marca { display: flex; align-items: center; gap: 0.65rem; padding: 0.2rem 0.6rem 0.7rem; font-weight: 700; font-size: 1.1rem; color: #111827; text-decoration: none; }
+.side-logo { width: 30px; height: 30px; border-radius: 9px; background: var(--color-primary); color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: 0.95rem; }
+.side .selector-empresa-nav { width: 100%; margin: 0 0 0.4rem; padding: 0.55rem 0.7rem; border-radius: 10px; border: 1px solid #e5e7eb; background: #f9fafb; font-size: 0.85rem; font-weight: 600; color: #111827; }
+.side-nav { display: flex; flex-direction: column; gap: 0.1rem; flex: 1; }
+.side-titulo { font-size: 0.68rem; letter-spacing: 0.08em; text-transform: uppercase; color: #6b7280; font-weight: 600; padding: 0.9rem 0.7rem 0.3rem; }
+.side-link { display: flex; align-items: center; gap: 0.75rem; padding: 0.6rem 0.7rem; border-radius: 10px; color: #4b5563; text-decoration: none; font-size: 0.88rem; font-weight: 500; transition: background 0.15s ease, color 0.15s ease; }
+.side-link:hover { background: #f3f4f6; color: #111827; }
+.side-link.activo { background: #eef2ff; color: var(--color-primary); font-weight: 600; }
+.side-pie { padding-top: 0.6rem; border-top: 1px solid #e5e7eb; }
+.side-pie .app-nav-logout { width: 100%; text-align: left; padding: 0.6rem 0.7rem; border-radius: 10px; }
+@media (max-width: 900px) {
+  .shell { flex-direction: column; }
+  .side { width: 100%; height: auto; position: sticky; top: 0; z-index: 30; flex-direction: row; flex-wrap: wrap; align-items: center; padding: 0.5rem 0.75rem; border-right: 0; border-bottom: 1px solid #e5e7eb; }
+  .side-marca { padding: 0.2rem 0.4rem; }
+  .side .selector-empresa-nav { width: auto; max-width: 11rem; margin: 0; }
+  .side-nav { order: 5; width: 100%; flex-direction: row; overflow-x: auto; gap: 0.2rem; padding-bottom: 0.2rem; }
+  .side-grupo { display: flex; gap: 0.2rem; }
+  .side-titulo { display: none; }
+  .side-link { white-space: nowrap; }
+  .side-pie { border: 0; padding: 0; margin-left: auto; }
+}
