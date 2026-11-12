@@ -10,6 +10,7 @@ export const ARCHIVOS_POR_DEFECTO: Record<string, string> = {
   IONOS_BRIDGE_URL_REDES_CREDENCIALES: "redes-credenciales.php",
   IONOS_BRIDGE_URL_PUBLICACION_SUBIR_VIDEO: "publicacion-subir-video.php",
   IONOS_BRIDGE_URL_PUBLICACION_VIDEO_GUARDAR: "publicacion-video-guardar.php",
+  IONOS_BRIDGE_URL_VIGILANTE: "vigilante.php",
 };
 
 export function urlBridge(variable: string): string | undefined {
