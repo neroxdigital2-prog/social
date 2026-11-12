@@ -32,6 +32,7 @@ export interface DatosCentro {
   ahora?: string;
   latido?: { ultimaEjecucion: string | null; segundosDesde: number | null };
   otrasIncidencias?: number;
+  config?: { modoNoche: string | null; nocheAhora: boolean; escaladoMin: number; email: boolean };
   agentes: AgenteVista[];
   disponibilidad: DisponibilidadDia[];
 }

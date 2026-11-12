@@ -72,6 +72,7 @@ export function LineaTiempo({ eventos }: { eventos: EventoIncidencia[] }) {
                 <time dateTime={e.momento.replace(" ", "T")}>{fechaHoraBD(e.momento)}</time> — {t.titulo}
                 {t.estado === "ok" && e.tipo === "AVISO" && <span className="cc-entrega cc-entrega-ok">✅ entregado</span>}
                 {t.estado === "error" && <span className="cc-entrega cc-entrega-error">❌ no entregado</span>}
+                {e.tipo === "AVISO" && e.entregado === null && e.detalle?.startsWith("Aplazado") && <span className="cc-entrega cc-entrega-noche">🌙 aplazado</span>}
               </p>
               {t.nota && <p className="cc-evento-nota">{t.nota}</p>}
             </div>

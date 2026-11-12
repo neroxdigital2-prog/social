@@ -23,6 +23,7 @@
     "lucide-react": "0.468.0",
     "next": "14.2.5",
     "next-auth": "5.0.0-beta.20",
+    "nodemailer": "^6.9.16",
     "openai": "4.55.4",
     "pdfkit": "0.15.0",
     "react": "18.3.1",
@@ -36,6 +37,7 @@
   "devDependencies": {
     "@types/bcryptjs": "2.4.6",
     "@types/node": "20.14.13",
+    "@types/nodemailer": "^6.4.17",
     "@types/pdfkit": "0.13.4",
     "@types/react": "18.3.3",
     "@vitest/ui": "2.0.5",

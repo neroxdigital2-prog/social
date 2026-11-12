@@ -4,6 +4,7 @@ import { bridgeVigilante } from "@/lib/vigilante";
 import { AGENTES, type EstadoAgente } from "@/lib/agentes";
 import { esOperador } from "@/lib/operador";
 import { telegramConfigurado } from "@/lib/telegram";
+import { configAvisos } from "@/lib/vigilante";
 
 export const dynamic = "force-dynamic";
 
@@ -101,6 +102,7 @@ export async function GET() {
   return NextResponse.json({
     instalado: true,
     telegram: telegramConfigurado(),
+    config: configAvisos(),
     ahora: lectura.ahora,
     latido: lectura.latido,
     otrasIncidencias: inc.get("otros")?.abiertas || 0,

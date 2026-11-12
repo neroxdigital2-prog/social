@@ -224,7 +224,9 @@ export function CentroControl() {
         </div>
       </div>
       <p className="dsh-muted">
-        Telegram: {datos?.telegram ? "✅ conectado" : "⚠️ sin configurar"} · Detalle técnico de los 55 bridges en <a href="/salud">Salud</a>.
+        Telegram: {datos?.telegram ? "✅ conectado" : "⚠️ sin configurar"} · Email de escalado: {datos?.config?.email ? "✅ configurado" : "⚠️ sin configurar"} ·
+        Modo noche: {datos?.config?.modoNoche ? `${datos.config.modoNoche}${datos.config.nocheAhora ? " (activo ahora 🌙)" : ""}` : "desactivado"} · Escalado a los{" "}
+        {datos?.config?.escaladoMin ?? 30} min · Detalle técnico de los bridges en <a href="/salud">Salud</a>.
       </p>
     </>
   );

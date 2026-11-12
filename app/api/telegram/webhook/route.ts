@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { waitUntil } from "@vercel/functions";
 import { chatsOperador, enviarMensaje, escaparHtml, llamarTelegram, secretoWebhook } from "@/lib/telegram";
-import { bridgeVigilante, ejecutarVigilante, reintentarEnvios, resolverIncidencia, resumenInforme, silenciarIncidencia } from "@/lib/vigilante";
+import { bridgeVigilante, ejecutarVigilante, enviarInformeSemanal, reintentarEnvios, resolverIncidencia, resumenInforme, silenciarIncidencia } from "@/lib/vigilante";
 import { urlApp } from "@/lib/urlApp";
 
 export const maxDuration = 60;
@@ -13,7 +13,7 @@ interface Actualizacion {
 }
 
 const AYUDA =
-  "🛡️ <b>Vigilante de Nerox Social IA</b>\n\nCada 15 min reviso IONOS, publicaciones, envíos a redes y conexiones.\n• Lo que puedo arreglar (reintentos, publicaciones atrasadas) lo arreglo solo y te lo cuento.\n• Lo que necesita una persona te lo aviso con la causa y los pasos.\n\n/estado — revisar ahora\n/incidencias — ver abiertas\n/id — tu chat_id";
+  "🛡️ <b>Vigilante de Nerox Social IA</b>\n\nCada 15 min reviso IONOS, publicaciones, envíos a redes y conexiones.\n• Lo que puedo arreglar (reintentos, imagen que falta, Reel → imagen, límites, tokens que caducan) lo arreglo solo y te lo cuento.\n• Lo que necesita una persona te lo aviso con la causa y los pasos.\n• De noche (23–8) solo te aviso de lo crítico; lo demás va en el parte de las 09:00.\n• Si una avería crítica no se atiende en 30 min, insisto y mando email.\n\n/estado — revisar ahora\n/incidencias — ver abiertas\n/informe — informe de 7 días\n/id — tu chat_id";
 
 function autorizado(chatId: number | string) {
   return chatsOperador().includes(String(chatId));
@@ -88,6 +88,9 @@ export async function POST(req: NextRequest) {
         .then((i) => enviarMensaje(chatId, resumenInforme(i)))
         .catch((e) => enviarMensaje(chatId, `❌ Error revisando: ${escaparHtml(String(e))}`))
     );
+  } else if (comando === "/informe") {
+    await enviarMensaje(chatId, "📊 Preparando el informe de los últimos 7 días…");
+    waitUntil(enviarInformeSemanal(`${base}/centro-control`).then((ok) => (ok ? undefined : enviarMensaje(chatId, "❌ No se pudo generar el informe."))));
   } else if (comando === "/incidencias") {
     const lista = (await bridgeVigilante<{ clave: string; titulo: string; estado: string; ultimaVez: string }[]>("incidencias")) || [];
     await enviarMensaje(

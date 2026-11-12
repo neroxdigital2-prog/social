@@ -13,14 +13,14 @@ export interface DefAgente {
 
 export const AGENTES: DefAgente[] = [
   { id: "publicador", nombre: "Publicador", icono: "🤖", descripcion: "Publica a su hora lo programado en el Calendario.", frecuencia: "cada 15 min" },
-  { id: "envios", nombre: "Envíos a redes", icono: "📤", descripcion: "Resultado de cada publicación en Facebook, Instagram y Google; reintenta los fallos temporales.", frecuencia: "cada 15 min" },
-  { id: "redes", nombre: "Conexiones", icono: "🌐", descripcion: "Tokens de Facebook, Instagram y Google Business válidos.", frecuencia: "cada hora" },
+  { id: "envios", nombre: "Envíos a redes", icono: "📤", descripcion: "Resultado de cada publicación. Corrige solo: reintentos, imagen que falta, Reel que falla → imagen, límite de la red → reprograma.", frecuencia: "cada 15 min" },
+  { id: "redes", nombre: "Conexiones", icono: "🌐", descripcion: "Tokens de Facebook, Instagram y Google Business. Renueva los de Meta antes de caducar y avisa 7 días antes si no puede.", frecuencia: "cada hora" },
   { id: "ionos", nombre: "IONOS", icono: "🔌", descripcion: "Bridges PHP y base de datos en IONOS.", frecuencia: "cada 15 min" },
   { id: "ia_texto", nombre: "IA de texto", icono: "🧠", descripcion: "Gemini, Groq, Cerebras y OpenRouter (rotación automática).", frecuencia: "cada hora" },
   { id: "ia_imagen", nombre: "IA de imagen", icono: "🎨", descripcion: "Gemini imagen, con Pollinations como respaldo.", frecuencia: "cada hora" },
   { id: "reels", nombre: "Reels", icono: "🎬", descripcion: "Vídeo de Pexels y voz con Gemini TTS.", frecuencia: "cada hora" },
   { id: "whatsapp", nombre: "WhatsApp", icono: "💬", descripcion: "API de WhatsApp Business y bot de respuestas.", frecuencia: "cada hora" },
-  { id: "telegram", nombre: "Avisos Telegram", icono: "📨", descripcion: "Canal por el que llegan los avisos al operador.", frecuencia: "cada hora" },
+  { id: "telegram", nombre: "Avisos", icono: "📨", descripcion: "Telegram (al momento) y email (escalado e informe semanal). Modo noche: de madrugada solo lo crítico.", frecuencia: "cada hora" },
   { id: "vigilante", nombre: "Vigilante", icono: "🛡️", descripcion: "Revisa todo, corrige lo que puede y avisa del resto.", frecuencia: "cada 15 min" },
 ];
 

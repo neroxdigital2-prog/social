@@ -1,4 +1,5 @@
 import { conRetry } from "@/lib/conRetry";
+import { marcarExitoIA, marcarFalloIA, ordenarPorDisponibilidad } from "@/lib/circuitoIA";
 
 export interface ClavesApiChat {
   gemini?: string;
@@ -141,12 +142,15 @@ export async function generarRespuestaChat(
   ];
 
   let ultimoError: unknown = null;
-  for (const paso of pasos) {
+  for (const paso of ordenarPorDisponibilidad(pasos)) {
     if (!paso.key) continue;
     try {
-      return await paso.fn(systemPrompt, userPrompt, paso.key);
+      const respuesta = await paso.fn(systemPrompt, userPrompt, paso.key);
+      marcarExitoIA(paso.nombre);
+      return respuesta;
     } catch (error) {
       console.error(`Fallo ${paso.nombre} en chat, probando siguiente proveedor:`, error);
+      marcarFalloIA(paso.nombre, error);
       ultimoError = error;
     }
   }

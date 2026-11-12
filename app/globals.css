@@ -1591,6 +1591,7 @@ select option {
 .cc-entrega { margin-left: 0.4rem; font-size: 0.74rem; font-weight: 700; white-space: nowrap; }
 .cc-entrega-ok { color: hsl(142 72% 26%); }
 .cc-entrega-error { color: hsl(0 70% 40%); }
+.cc-entrega-noche { color: hsl(240 30% 40%); }
 
 /* Filtros y tablas */
 .dsh > *, .cc-filtros { min-width: 0; }

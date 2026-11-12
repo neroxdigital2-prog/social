@@ -10,13 +10,53 @@ import { urlBridge } from "@/lib/bridgeUrl";
 import { revisarTodosLosBridges } from "@/lib/salud";
 import { diagnosticarError } from "@/lib/diagnosticoRedes";
 import { avisarOperador, chatsOperador, escaparHtml, llamarTelegram, tokenBot, telegramConfigurado, type BotonTelegram } from "@/lib/telegram";
-import { NOMBRE_AGENTE, type EstadoAgente } from "@/lib/agentes";
+import { NOMBRE_AGENTE, duracion, fechaHoraBD, type EstadoAgente } from "@/lib/agentes";
+import { generarImagen } from "@/lib/generadorImagen";
+import { emailConfigurado, enviarEmail, htmlEmail } from "@/lib/email";
 
 const BRIDGE_SECRET = process.env.BRIDGE_SECRET || "";
 const GRAPH = "https://graph.facebook.com/v21.0";
 const MAX_REINTENTOS_TEMPORAL = 3;
 const MAX_REINTENTOS_DESCONOCIDO = 1;
 const MIN_ALERTA_CRON = 90; // minutos de retraso para avisar de que el cron de publicar no corre
+const MIN_ESCALADO = Number(process.env.VIGILANTE_ESCALADO_MIN) || 30; // crítica sin respuesta → re-aviso + email
+const MINUTOS_LIMITE_RED = 120; // límite de publicaciones alcanzado → se reprograma más tarde
+const DIAS_AVISO_CADUCIDAD = 7;
+
+const RE_SIN_IMAGEN = /requiere una imagen|no ten[ií]a ninguna/i;
+const RE_LIMITE = /content_publishing_limit|publishing limit|request limit|rate limit|limit reached|\(#4\)|\(#17\)|\(#32\)|\(#9\)|resource_exhausted|\b429\b|quota/i;
+const RE_FALLO_VIDEO = /reel|v[ií]deo|video|2207026|expired|no pudo procesar|status error|tard[oó] demasiado|timeout/i;
+
+/** Hora de Madrid y modo noche (por defecto 23–8; VIGILANTE_MODO_NOCHE="23-8", "off" para desactivar). */
+function relojMadrid(fecha = new Date()) {
+  const partes = new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Madrid", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", weekday: "short", hour12: false }).formatToParts(fecha);
+  const v = (t: string) => partes.find((x) => x.type === t)?.value || "";
+  return { fecha: `${v("year")}-${v("month")}-${v("day")}`, hora: Number(v("hour")) % 24, minuto: Number(v("minute")), diaSemana: v("weekday") };
+}
+
+export function franjaNoche(): { desde: number; hasta: number } | null {
+  const conf = (process.env.VIGILANTE_MODO_NOCHE || "23-8").trim().toLowerCase();
+  if (conf === "off" || conf === "no") return null;
+  const m = /^(\d{1,2})\s*-\s*(\d{1,2})$/.exec(conf);
+  return m ? { desde: Number(m[1]) % 24, hasta: Number(m[2]) % 24 } : { desde: 23, hasta: 8 };
+}
+
+export function esModoNoche(fecha = new Date()): boolean {
+  const f = franjaNoche();
+  if (!f) return false;
+  const h = relojMadrid(fecha).hora;
+  return f.desde > f.hasta ? h >= f.desde || h < f.hasta : h >= f.desde && h < f.hasta;
+}
+
+export function configAvisos() {
+  const f = franjaNoche();
+  return {
+    modoNoche: f ? `${String(f.desde).padStart(2, "0")}:00–${String(f.hasta).padStart(2, "0")}:00` : null,
+    nocheAhora: esModoNoche(),
+    escaladoMin: MIN_ESCALADO,
+    email: emailConfigurado(),
+  };
+}
 
 const NOMBRE_RED: Record<string, string> = {
   FACEBOOK: "Facebook",
@@ -35,6 +75,10 @@ interface Fallida {
   titulo: string;
   empresaId: string;
   empresaNombre: string;
+  imagenUrl?: string | null;
+  imagenPrompt?: string | null;
+  videoUrl?: string | null;
+  formato?: string | null;
 }
 
 interface Atascada {
@@ -57,6 +101,7 @@ interface IncidenciaFila {
   clave: string;
   agente?: string | null;
   estado: "ABIERTA" | "SILENCIADA" | "RESUELTA";
+  nivel?: "CRITICO" | "AVISO";
   titulo: string;
 }
 
@@ -158,8 +203,29 @@ async function destinoTelegram(chat: string): Promise<string> {
  */
 export async function avisarYRegistrar(
   html: string,
-  ctx: { clave?: string | null; agente?: string | null; detalle: string; botones?: BotonTelegram[][]; actor?: string }
+  ctx: { clave?: string | null; agente?: string | null; detalle: string; botones?: BotonTelegram[][]; actor?: string; aplazar?: boolean; email?: string }
 ) {
+  if (ctx.aplazar) {
+    await registrarEventos([
+      { clave: ctx.clave ?? null, agente: ctx.agente ?? null, tipo: "AVISO", canal: "TELEGRAM", destino: "Parte de las 09:00", entregado: null, actor: ctx.actor || "Vigilante", detalle: `Aplazado por modo noche: ${ctx.detalle}` },
+    ]);
+    return { enviados: 0, entregas: [] };
+  }
+  if (ctx.email) {
+    const correo = await enviarEmail(ctx.email, htmlEmail(html));
+    await registrarEventos(
+      correo.entregas.map((e) => ({
+        clave: ctx.clave ?? null,
+        agente: ctx.agente ?? null,
+        tipo: "AVISO" as const,
+        canal: "EMAIL",
+        destino: e.para,
+        entregado: e.ok,
+        actor: ctx.actor || "Vigilante",
+        detalle: e.ok ? ctx.detalle : `${ctx.detalle} — NO entregado: ${e.error}`,
+      }))
+    );
+  }
   const r = await avisarOperador(html, ctx.botones);
   const eventos: EventoNuevo[] = await Promise.all(
     r.entregas.map(async (e) => ({
@@ -329,7 +395,88 @@ async function revisarTelegram(): Promise<AgenteRevisado> {
   if (!yo.ok) return { agente: "telegram", estado: "ERROR", mensaje: "El token del bot no es válido", detalle: [yo.description || ""] };
   if (!chatsOperador().length) return { agente: "telegram", estado: "AVISO", mensaje: `@${yo.result?.username}: falta TELEGRAM_CHAT_ID` };
   const destinos = await Promise.all(chatsOperador().map(destinoTelegram));
-  return { agente: "telegram", estado: "OK", mensaje: `@${yo.result?.username} → ${destinos.length} destinatario(s)`, detalle: destinos };
+  const email = emailConfigurado() ? "✅ Email de escalado configurado" : "⚠️ Email de escalado sin configurar (SMTP_USER, SMTP_PASS, AVISOS_EMAIL_PARA)";
+  return { agente: "telegram", estado: "OK", mensaje: `@${yo.result?.username} → ${destinos.length} destinatario(s)`, detalle: [...destinos, email] };
+}
+
+// ───────────────────────── reparaciones automáticas ─────────────────────────
+
+/** Devuelve la imagen de la publicación; si no tiene, genera una 9:16 y la guarda. */
+async function imagenPara(f: Fallida): Promise<string | null> {
+  if (f.imagenUrl) return f.imagenUrl;
+  try {
+    const prompt = f.imagenPrompt || `Professional vertical social media photo about: ${f.titulo}. Realistic, bright, modern, no text`;
+    const url = await generarImagen(prompt);
+    const r = await bridgeVigilante<{ ok?: boolean }>("poner_imagen", { publicacionId: f.publicacionId, imagenUrl: url });
+    return r?.ok ? url : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Arregla los fallos de envío que tienen solución conocida:
+ *  · Instagram sin imagen → genera la imagen 9:16 y reintenta
+ *  · el Reel falla → lo publica como imagen
+ *  · límite de publicaciones de la red → reprograma 2 h más tarde
+ */
+async function repararEnvio(f: Fallida, reintentos: number): Promise<{ texto: string; lanzar: boolean } | null> {
+  const err = f.error || "";
+  const red = NOMBRE_RED[f.red] || f.red;
+  const ref = `${f.empresaNombre} · ${red} · ${f.titulo}`;
+
+  if (RE_SIN_IMAGEN.test(err) && reintentos < 2) {
+    const url = await imagenPara(f);
+    if (!url) return null;
+    const r = await bridgeVigilante<{ ok?: boolean }>("reintentar", { ids: [f.id] });
+    return r?.ok ? { texto: `Faltaba la imagen: generada en 9:16 y reintentado · ${ref}`, lanzar: true } : null;
+  }
+
+  if (f.formato === "VIDEO" && (f.red === "INSTAGRAM" || f.red === "FACEBOOK") && reintentos < 2 && !RE_LIMITE.test(err) && (RE_FALLO_VIDEO.test(err) || reintentos >= 1)) {
+    const url = await imagenPara(f);
+    if (!url) return null;
+    await bridgeVigilante("cambiar_formato", { publicacionId: f.publicacionId, formato: "IMAGEN" });
+    const r = await bridgeVigilante<{ ok?: boolean }>("reintentar", { ids: [f.id] });
+    return r?.ok ? { texto: `El Reel falló («${err.slice(0, 60)}»): se publica como imagen · ${ref}`, lanzar: true } : null;
+  }
+
+  if (RE_LIMITE.test(err) && reintentos < MAX_REINTENTOS_TEMPORAL) {
+    const r = await bridgeVigilante<{ ok?: boolean; fechaProgramada?: string }>("reprogramar_envio", { ids: [f.id], minutos: MINUTOS_LIMITE_RED });
+    return r?.ok ? { texto: `Límite de ${red} alcanzado: reprogramada para el ${fechaHoraBD(r.fechaProgramada)} · ${ref}`, lanzar: false } : null;
+  }
+
+  return null;
+}
+
+/** Caducidad real de un token de Meta (debug_token con el token de la app). */
+async function caducidadMeta(token: string): Promise<{ expira: number; accesoDatos: number } | null> {
+  const id = process.env.FACEBOOK_APP_ID;
+  const secreto = process.env.FACEBOOK_APP_SECRET;
+  if (!id || !secreto) return null;
+  try {
+    const res = await fetch(`${GRAPH}/debug_token?input_token=${encodeURIComponent(token)}&access_token=${encodeURIComponent(`${id}|${secreto}`)}`, { cache: "no-store" });
+    const d = (await res.json().catch(() => ({})))?.data;
+    if (!d) return null;
+    return { expira: Number(d.expires_at) || 0, accesoDatos: Number(d.data_access_expires_at) || 0 };
+  } catch {
+    return null;
+  }
+}
+
+/** Intenta alargar un token de Meta (fb_exchange_token). Devuelve el nuevo token y su caducidad. */
+async function renovarTokenMeta(token: string): Promise<{ token: string; expira: number } | null> {
+  const id = process.env.FACEBOOK_APP_ID;
+  const secreto = process.env.FACEBOOK_APP_SECRET;
+  if (!id || !secreto) return null;
+  try {
+    const url = `${GRAPH}/oauth/access_token?grant_type=fb_exchange_token&client_id=${id}&client_secret=${encodeURIComponent(secreto)}&fb_exchange_token=${encodeURIComponent(token)}`;
+    const d = await (await fetch(url, { cache: "no-store" })).json().catch(() => ({}));
+    if (!d?.access_token) return null;
+    const info = await caducidadMeta(d.access_token);
+    return { token: d.access_token, expira: info?.expira ?? (d.expires_in ? Math.floor(Date.now() / 1000) + Number(d.expires_in) : 0) };
+  } catch {
+    return null;
+  }
 }
 
 function tituloRed(empresa: string, red: string, titulo: string) {
@@ -457,8 +604,18 @@ export async function ejecutarVigilante(base: string, opciones: { revisarTokens?
   const aReintentar: Fallida[] = [];
   let enviosConexion = 0;
   let enviosOtros = 0;
+  let reparados = 0;
+  let lanzarTrasReparar = false;
   for (const f of fallidas) {
     const reintentos = Number(f.reintentos) || 0;
+    const reparacion = await repararEnvio(f, reintentos);
+    if (reparacion) {
+      reparados++;
+      lanzarTrasReparar ||= reparacion.lanzar;
+      informe.corregido.push(reparacion.texto);
+      autocorrecciones.push({ clave: `pub:${f.id}`, agente: "envios", tipo: "AUTOCORRECCION", canal: "AUTOMATICO", actor: "Vigilante", detalle: `${reparacion.texto} — error original: ${(f.error || "").slice(0, 160)}` });
+      continue;
+    }
     const { d, html } = bloqueDiagnostico(f.red, f.error || "");
     const limite = d.ambito === "temporal" ? MAX_REINTENTOS_TEMPORAL : d.ambito === "desconocido" ? MAX_REINTENTOS_DESCONOCIDO : 0;
     if (reintentos < limite) {
@@ -496,14 +653,16 @@ export async function ejecutarVigilante(base: string, opciones: { revisarTokens?
       }
     }
   }
+  if (lanzarTrasReparar && !aReintentar.length) await lanzarPublicador(base);
+  const arreglados = aReintentar.length + reparados;
   informe.agentes.push({
     agente: "envios",
     estado: enviosConexion ? "ERROR" : enviosOtros ? "AVISO" : "OK",
     mensaje:
       enviosConexion + enviosOtros
-        ? `${enviosConexion + enviosOtros} envío(s) con error${aReintentar.length ? ` · ${aReintentar.length} reintentado(s)` : ""}`
-        : aReintentar.length
-          ? `${aReintentar.length} reintentado(s) automáticamente`
+        ? `${enviosConexion + enviosOtros} envío(s) con error${arreglados ? ` · ${arreglados} corregido(s) solo(s)` : ""}`
+        : arreglados
+          ? `${arreglados} fallo(s) corregido(s) automáticamente`
           : "Sin errores en 3 días",
   });
 
@@ -544,6 +703,53 @@ export async function ejecutarVigilante(base: string, opciones: { revisarTokens?
       });
     }
 
+    // Caducidad de tokens de Meta: se renuevan solos antes de caducar; si no se puede, aviso 7 días antes
+    revisados.add("caduca");
+    const ahoraSeg = Math.floor(Date.now() / 1000);
+    const limiteSeg = ahoraSeg + DIAS_AVISO_CADUCIDAD * 86400;
+    for (const { r, motivo } of comprobaciones) {
+      if (motivo || !r.accessToken || (r.red !== "FACEBOOK" && r.red !== "INSTAGRAM")) continue;
+      const info = await caducidadMeta(r.accessToken);
+      if (!info) continue;
+      const red = NOMBRE_RED[r.red] || r.red;
+      const caducaToken = info.expira > 0 && info.expira < limiteSeg;
+      const caducaDatos = info.accesoDatos > 0 && info.accesoDatos < limiteSeg;
+      if (!caducaToken && !caducaDatos) continue;
+
+      if (caducaToken) {
+        const nuevo = await renovarTokenMeta(r.accessToken);
+        if (nuevo && (nuevo.expira === 0 || nuevo.expira > info.expira + 86400)) {
+          const g = await bridgeVigilante<{ ok?: boolean }>("actualizar_token", {
+            empresaId: r.empresaId,
+            red: r.red,
+            accessToken: nuevo.token,
+            expiraEn: nuevo.expira ? new Date(nuevo.expira * 1000).toISOString() : null,
+          });
+          if (g?.ok) {
+            const texto = `Token de ${red} renovado antes de caducar (${r.empresaNombre}) · ${nuevo.expira ? `válido hasta el ${new Date(nuevo.expira * 1000).toLocaleDateString("es-ES", { timeZone: "Europe/Madrid" })}` : "sin caducidad"}`;
+            informe.corregido.push(texto);
+            autocorrecciones.push({ agente: "redes", tipo: "AUTOCORRECCION", canal: "AUTOMATICO", actor: "Vigilante", detalle: texto });
+            if (!caducaDatos) continue;
+          }
+        }
+      }
+
+      const fin = Math.min(...[caducaToken ? info.expira : 0, caducaDatos ? info.accesoDatos : 0].filter((x) => x > 0));
+      const dias = Math.max(0, Math.ceil((fin - ahoraSeg) / 86400));
+      const clave = `caduca:${r.empresaId}:${r.red}`;
+      problemas.push({
+        clave,
+        agente: "redes",
+        firma: dias <= 2 ? "urgente" : "pronto",
+        nivel: dias <= 2 ? "CRITICO" : "AVISO",
+        titulo: `${r.empresaNombre} · ${red}: la conexión caduca en ${dias} día(s)`,
+        detalle:
+          `${caducaDatos ? "Meta exige volver a iniciar sesión cada 90 días para seguir accediendo a los datos." : "No se pudo renovar el token automáticamente."}\n\n` +
+          `<b>Qué hacer (2 min):</b>\n1. Configuración → ${escaparHtml(r.empresaNombre)} → «Conectar Facebook».\n2. Inicia sesión y acepta los permisos.\n3. Listo: el contador vuelve a empezar.`,
+        botones: [[{ texto: "🔌 Reconectar ahora", url: enlace(base, `/configuracion?empresa=${r.empresaId}`) }], [{ texto: "🔕 Silenciar", datos: `s:${clave}` }]],
+      });
+    }
+
     const iaTexto = await revisarIATexto();
     const geminiError = iaTexto.detalle?.find((d) => d.includes("Gemini"))?.startsWith("❌") ? iaTexto.detalle.find((d) => d.includes("Gemini"))!.replace("❌ Gemini: ", "") : null;
     const extra = await Promise.all([revisarIAImagen(geminiError), revisarReels(geminiError), revisarWhatsApp(actividad.whatsapp), revisarTelegram()]);
@@ -566,6 +772,8 @@ export async function ejecutarVigilante(base: string, opciones: { revisarTokens?
   }
 
   // ── 5) Registrar incidencias, avisar y dejar constancia ──
+  // Modo noche: lo no crítico no se envía (queda en el historial como «aplazado») y llega en el parte de las 09:00.
+  const noche = esModoNoche();
   const clavesActuales = new Set(problemas.map((p) => p.clave));
   for (const p of problemas) {
     const r = await bridgeVigilante<{ avisar?: boolean; tipo?: string | null }>("incidencia_abrir", {
@@ -581,7 +789,7 @@ export async function ejecutarVigilante(base: string, opciones: { revisarTokens?
     if (avisar) {
       const motivo = r?.tipo === "REABIERTA" ? "Aviso: la avería ha vuelto" : r?.tipo === "CAMBIO" ? "Aviso: la avería ha cambiado" : "Aviso de nueva avería";
       await registrarEventos([{ clave: p.clave, agente: p.agente, tipo: "AVISO", canal: "DASHBOARD", destino: "Centro de control", entregado: true, actor: "Vigilante", detalle: motivo }]);
-      await avisarYRegistrar(textoProblema(p), { clave: p.clave, agente: p.agente, detalle: motivo, botones: p.botones });
+      await avisarYRegistrar(textoProblema(p), { clave: p.clave, agente: p.agente, detalle: motivo, botones: p.botones, aplazar: noche && p.nivel !== "CRITICO" });
     }
     informe.problemas.push({ clave: p.clave, titulo: p.titulo, avisado: avisar });
   }
@@ -613,44 +821,122 @@ export async function ejecutarVigilante(base: string, opciones: { revisarTokens?
           clave: inc.clave,
           agente: inc.agente,
           detalle: "Aviso de resolución",
+          aplazar: noche && inc.nivel !== "CRITICO",
         });
       }
     }
   }
 
-  // Correcciones automáticas: historial + un resumen por Telegram
+  // Correcciones automáticas: historial + un resumen por Telegram (de noche, al parte de las 09:00)
   if (autocorrecciones.length) {
     await registrarEventos(autocorrecciones);
     await avisarYRegistrar(`🛠️ <b>Corregido automáticamente</b>\n\n${informe.corregido.map((c) => `• ${escaparHtml(c)}`).join("\n")}`, {
       agente: "vigilante",
       detalle: `Resumen de ${informe.corregido.length} corrección(es) automática(s)`,
+      aplazar: noche,
     });
+  }
+
+  // ── 6) Escalado: avería crítica sin respuesta → re-aviso por Telegram + email ──
+  const sinRespuesta = (await bridgeVigilante<{ clave: string; agente: string | null; titulo: string; minutos: number | string }[]>("para_escalar", { minutos: MIN_ESCALADO })) || [];
+  for (const e of sinRespuesta) {
+    const minutos = Number(e.minutos) || MIN_ESCALADO;
+    const html =
+      `⏰ <b>Sin respuesta desde hace ${duracion(minutos * 60)}</b>\n\n🚨 ${escaparHtml(e.titulo)}\n\n` +
+      `Sigue abierta y nadie la ha reintentado, silenciado ni resuelto. Revísala en el Centro de control.`;
+    await avisarYRegistrar(html, {
+      clave: e.clave,
+      agente: e.agente,
+      detalle: `Escalado: avería crítica sin respuesta en ${MIN_ESCALADO} min`,
+      email: `🚨 [Nerox] Avería crítica sin respuesta: ${e.titulo}`.slice(0, 180),
+      botones: [
+        [{ texto: "🧭 Abrir Centro de control", url: centro }],
+        [{ texto: "✅ Resuelto", datos: `ok:${e.clave}` }, { texto: "🔕 Silenciar", datos: `s:${e.clave}` }],
+      ],
+    });
+    await bridgeVigilante("marcar_escalada", { clave: e.clave });
+    informe.problemas = informe.problemas.map((p) => (p.clave === e.clave ? { ...p, avisado: true } : p));
   }
 
   // Estado del propio vigilante + guardar luces de todos los agentes
   informe.agentes.push({
     agente: "vigilante",
     estado: informe.error ? "ERROR" : "OK",
-    mensaje: `Revisión completa · ${problemas.length} incidencia(s) · ${informe.corregido.length} corrección(es)`,
+    mensaje: `Revisión completa · ${problemas.length} incidencia(s) · ${informe.corregido.length} corrección(es)${noche ? " · 🌙 modo noche" : ""}`,
   });
   await bridgeVigilante("agentes_guardar", { agentes: informe.agentes });
   await bridgeVigilante("latido_guardar", { informe });
 
-  // Parte diario por Telegram (primera pasada desde las 09:00, hora de Madrid) para saber que sigue vivo
-  const madrid = new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Madrid", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", hour12: false }).formatToParts(new Date());
-  const parte = (t: string) => madrid.find((x) => x.type === t)?.value || "";
-  if (Number(parte("hour")) >= 9) {
-    const diario = await bridgeVigilante<{ enviar?: boolean }>("diario_pendiente", { fecha: `${parte("year")}-${parte("month")}-${parte("day")}` });
+  // ── 7) Parte diario (09:00) con lo aplazado de la noche, e informe semanal (lunes) ──
+  const reloj = relojMadrid();
+  if (reloj.hora >= 9) {
+    const diario = await bridgeVigilante<{ enviar?: boolean }>("diario_pendiente", { fecha: reloj.fecha });
     if (diario?.enviar) {
-      await avisarYRegistrar(`☀️ <b>Buenos días.</b> El vigilante sigue activo.\n\n${resumenInforme(informe).split("\n").slice(2).join("\n")}`, {
+      const nocturnos = (await bridgeVigilante<{ tipo: string; detalle: string | null; entregado: number | string | null }[]>("autocorrecciones", { horas: 11 })) || [];
+      const arreglos = nocturnos.filter((e) => e.tipo !== "AVISO");
+      const lineasNoche = arreglos.slice(0, 10).map((e) => `• ${escaparHtml((e.detalle || "").split(" — ")[0])}`);
+      const bloqueNoche = arreglos.length
+        ? `\n\n🌙 <b>Durante la noche se corrigieron ${arreglos.length} fallo(s):</b>\n${lineasNoche.join("\n")}${arreglos.length > 10 ? `\n… y ${arreglos.length - 10} más` : ""}`
+        : "";
+      await avisarYRegistrar(`☀️ <b>Buenos días.</b> El vigilante sigue activo.\n\n${resumenInforme(informe).split("\n").slice(2).join("\n")}${bloqueNoche}`, {
         agente: "vigilante",
         detalle: "Parte diario",
         botones: [[{ texto: "🧭 Centro de control", url: centro }]],
       });
     }
+
+    if (reloj.diaSemana.toLowerCase().startsWith("mon") || reloj.diaSemana.toLowerCase().startsWith("lun")) {
+      const semanal = await bridgeVigilante<{ enviar?: boolean }>("semanal_pendiente", { fecha: reloj.fecha });
+      if (semanal?.enviar) await enviarInformeSemanal(centro);
+    }
   }
 
   return informe;
+}
+
+interface DatosSemana {
+  nuevas: number;
+  criticas: number;
+  resueltas: number;
+  resueltasAutomaticas: number;
+  mediaSolucionSeg: number | null;
+  abiertas: number;
+  silenciadas: number;
+  autocorrecciones: number;
+  avisosEntregados: number;
+  avisosFallidos: number;
+  disponibilidad: { agente: string; pct: string | number }[];
+  top: { titulo: string; avisos: number | string; estado: string }[];
+}
+
+/** Informe semanal (lunes): Telegram + email, y queda en el historial. */
+export async function enviarInformeSemanal(centro: string) {
+  const d = await bridgeVigilante<DatosSemana>("informe_semanal");
+  if (!d || typeof d.nuevas !== "number") return false;
+  const disp = [...(d.disponibilidad || [])]
+    .sort((a, b) => Number(a.pct) - Number(b.pct))
+    .map((x) => `${Number(x.pct) >= 99 ? "🟢" : Number(x.pct) >= 90 ? "🟡" : "🔴"} ${escaparHtml(NOMBRE_AGENTE[x.agente] || x.agente)}: ${x.pct}%`);
+  const top = (d.top || []).map((t) => `• ${escaparHtml(t.titulo)} (${t.avisos} aviso(s), ${t.estado.toLowerCase()})`);
+  const html = [
+    "📊 <b>Informe semanal del Vigilante</b>",
+    "<i>Últimos 7 días</i>",
+    "",
+    `🔴 Averías nuevas: <b>${d.nuevas}</b> (${d.criticas} críticas)`,
+    `✅ Resueltas: <b>${d.resueltas}</b> (${d.resueltasAutomaticas} automáticamente)`,
+    `⏱️ Tiempo medio de solución: <b>${d.mediaSolucionSeg !== null ? duracion(d.mediaSolucionSeg) : "—"}</b>`,
+    `🛠️ Correcciones automáticas: <b>${d.autocorrecciones}</b>`,
+    `📨 Avisos entregados: <b>${d.avisosEntregados}</b>${d.avisosFallidos ? ` · ❌ ${d.avisosFallidos} fallidos` : ""}`,
+    `⚠️ Siguen abiertas: <b>${d.abiertas}</b>${d.silenciadas ? ` · 🔕 ${d.silenciadas} silenciadas` : ""}`,
+    ...(disp.length ? ["", "<b>Disponibilidad por agente</b>", ...disp] : []),
+    ...(top.length ? ["", "<b>Averías con más avisos</b>", ...top] : []),
+  ].join("\n");
+  await avisarYRegistrar(html, {
+    agente: "vigilante",
+    detalle: "Informe semanal",
+    email: "📊 [Nerox] Informe semanal del Vigilante",
+    botones: [[{ texto: "🧭 Centro de control", url: centro }]],
+  });
+  return true;
 }
 
 export function resumenInforme(i: InformeVigilante): string {

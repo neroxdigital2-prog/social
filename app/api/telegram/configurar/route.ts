@@ -28,6 +28,7 @@ export async function GET(req: NextRequest) {
     commands: [
       { command: "estado", description: "Revisar el sistema ahora" },
       { command: "incidencias", description: "Ver incidencias abiertas" },
+      { command: "informe", description: "Informe de los últimos 7 días" },
       { command: "id", description: "Ver tu chat_id" },
       { command: "ayuda", description: "Qué hace este bot" },
     ],

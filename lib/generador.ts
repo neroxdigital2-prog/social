@@ -1,5 +1,6 @@
 import { conRetry } from "@/lib/conRetry";
 import { TipoPublicacion } from "@prisma/client";
+import { marcarExitoIA, marcarFalloIA, ordenarPorDisponibilidad } from "@/lib/circuitoIA";
 
 export interface PerfilEmpresa {
   nombre: string;
@@ -255,13 +256,15 @@ export async function generarPublicaciones(
   let contenido: string | null = null;
   let ultimoError: unknown = null;
 
-  for (const paso of pasos) {
+  for (const paso of ordenarPorDisponibilidad(pasos)) {
     if (!paso.key) continue;
     try {
       contenido = await paso.fn(systemPrompt, userPrompt, paso.key);
+      marcarExitoIA(paso.nombre);
       break;
     } catch (error) {
       console.error(`Fallo ${paso.nombre}, probando siguiente proveedor:`, error);
+      marcarFalloIA(paso.nombre, error);
       ultimoError = error;
     }
   }
