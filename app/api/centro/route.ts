@@ -5,6 +5,7 @@ import { AGENTES, type EstadoAgente } from "@/lib/agentes";
 import { esOperador } from "@/lib/operador";
 import { telegramConfigurado } from "@/lib/telegram";
 import { cargarColaPublicaciones } from "@/lib/colaPublicaciones";
+import { estadosEmpresas } from "@/lib/empresasActivas";
 
 export const dynamic = "force-dynamic";
 
@@ -76,10 +77,12 @@ export async function GET() {
   if (!session?.user?.id) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   if (!esOperador(session.user.email)) return NextResponse.json({ error: "Solo operadores" }, { status: 403 });
 
+  const empresas = await estadosEmpresas(session.user.id);
+  const inactivas = new Set((empresas || []).filter((e) => !e.activa).map((e) => e.id));
   const [lectura, disp, cola] = await Promise.all([
     bridgeVigilante<Lectura>("agentes_leer"),
     bridgeVigilante<FilaDisp[]>("disponibilidad", { dias: 7 }),
-    cargarColaPublicaciones(session.user.id),
+    cargarColaPublicaciones(session.user.id, inactivas),
   ]);
 
   const instalado = !!lectura && Array.isArray(lectura.agentes);
@@ -153,6 +156,7 @@ export async function GET() {
     latido: lectura?.latido || { ultimaEjecucion: null, segundosDesde: null },
     otrasIncidencias: inc.get("otros")?.abiertas || 0,
     cola,
+    empresas: empresas || [],
     agentes,
     disponibilidad,
   });

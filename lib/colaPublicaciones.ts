@@ -51,9 +51,10 @@ function ahoraMadrid(): string {
     .replace("T", " ");
 }
 
-export async function cargarColaPublicaciones(userId: string): Promise<ColaPublicaciones | null> {
-  const empresas = await bridge<{ id: string; nombre: string }[]>(process.env.IONOS_BRIDGE_URL_EMPRESAS_LIST, { userId });
-  if (!Array.isArray(empresas)) return null;
+export async function cargarColaPublicaciones(userId: string, inactivas: Set<string> = new Set()): Promise<ColaPublicaciones | null> {
+  const todasEmpresas = await bridge<{ id: string; nombre: string }[]>(process.env.IONOS_BRIDGE_URL_EMPRESAS_LIST, { userId });
+  if (!Array.isArray(todasEmpresas)) return null;
+  const empresas = todasEmpresas.filter((e) => !inactivas.has(e.id)); // las desactivadas no publican
   const ahora = ahoraMadrid();
 
   const listas = await Promise.all(

@@ -6,6 +6,7 @@ import { AGENTES, NOMBRE_AGENTE, fechaHoraBD } from "@/lib/agentes";
 import { useCentro } from "@/components/centro/useCentro";
 import { PanelAgentes } from "@/components/centro/PanelAgentes";
 import { TelegramConexion } from "@/components/centro/TelegramConexion";
+import { EmpresasActivas } from "@/components/centro/EmpresasActivas";
 import { IncidenciaTarjeta, textoEvento } from "@/components/centro/IncidenciaTarjeta";
 import type { DisponibilidadDia, EventoIncidencia, IncidenciaVista } from "@/components/centro/tipos";
 
@@ -215,6 +216,12 @@ export function CentroControl() {
   return (
     <>
       <PanelAgentes datos={datos} error={error} recargar={recargar} />
+      <section className="dsh-card" aria-labelledby="cc-emp-titulo">
+        <div>
+          <h2 id="cc-emp-titulo">🏢 Empresas activas</h2>
+        </div>
+        {datos ? <EmpresasActivas empresas={datos.empresas || []} onCambio={recargar} /> : <p className="dsh-muted">Cargando…</p>}
+      </section>
       <section className="dsh-card" aria-labelledby="cc-tg-titulo">
         <div>
           <h2 id="cc-tg-titulo">📨 Avisos por Telegram</h2>

@@ -52,10 +52,20 @@ export interface ColaVista {
   proximas: PublicacionCola[];
 }
 
+export interface EmpresaActiva {
+  id: string;
+  nombre: string;
+  activa: boolean;
+  programadas: number;
+  redes: number;
+  sinDatos?: boolean;
+}
+
 export interface DatosCentro {
   instalado: boolean;
   diagnostico?: DiagnosticoVista | null;
   cola?: ColaVista | null;
+  empresas?: EmpresaActiva[];
   telegram: boolean;
   ahora?: string;
   latido?: { ultimaEjecucion: string | null; segundosDesde: number | null };
