@@ -150,6 +150,7 @@ function Autocorrecciones() {
 }
 
 function Disponibilidad({ filas }: { filas: DisponibilidadDia[] }) {
+  const [historial, setHistorial] = useState(false);
   const dias = Array.from({ length: 7 }, (_, i) => {
     const d = new Date();
     d.setDate(d.getDate() - (6 - i));
@@ -160,16 +161,19 @@ function Disponibilidad({ filas }: { filas: DisponibilidadDia[] }) {
   return (
     <section className="dsh-card" aria-labelledby="cc-disp-titulo">
       <div>
-        <h2 id="cc-disp-titulo">Disponibilidad · últimos 7 días</h2>
+        <h2 id="cc-disp-titulo">Disponibilidad · {historial ? "últimos 7 días" : "hoy"}</h2>
         <p className="dsh-muted">% de revisiones en las que cada agente estaba operativo.</p>
+        <button type="button" className="dsh-btn" aria-expanded={historial} onClick={() => setHistorial((v) => !v)}>
+          {historial ? "Ocultar historial" : "Ver historial (7 días)"}
+        </button>
       </div>
       <div className="cc-tabla-scroll">
         <table className="cc-tabla cc-disp">
           <thead>
             <tr>
               <th scope="col">Agente</th>
-              {dias.map((d) => <th key={d} scope="col">{d.slice(8, 10)}/{d.slice(5, 7)}</th>)}
-              <th scope="col">Media</th>
+              {dias.map((d, i) => (historial || i === 6) && <th key={d} scope="col">{d.slice(8, 10)}/{d.slice(5, 7)}</th>)}
+              <th scope="col">Media 7d</th>
             </tr>
           </thead>
           <tbody>
@@ -181,6 +185,7 @@ function Disponibilidad({ filas }: { filas: DisponibilidadDia[] }) {
                 <tr key={a.id}>
                   <th scope="row"><span aria-hidden="true">{a.icono}</span> {a.nombre}</th>
                   {celdas.map((c, i) => {
+                    if (!historial && i !== 6) return null;
                     const nivel = !c || c.pct === null ? "nd" : c.pct >= 99 ? "ok" : c.pct >= 90 ? "aviso" : "error";
                     return (
                       <td key={dias[i]}>
