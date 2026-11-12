@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { BellOff, CheckCircle2, ChevronDown, RotateCcw } from "lucide-react";
+import { BellOff, CheckCircle2, ChevronDown, RotateCcw, Trash2 } from "lucide-react";
 import { NOMBRE_AGENTE, TEXTO_VIA, duracion, fechaHoraBD } from "@/lib/agentes";
 import type { EventoIncidencia, IncidenciaVista } from "@/components/centro/tipos";
 
@@ -111,6 +111,20 @@ export function IncidenciaTarjeta({ inc, onCambio, abiertaInicial = false }: { i
     onCambio?.();
   }
 
+  async function borrar() {
+    if (!window.confirm("¿Borrar este reporte y todo su historial? No se puede deshacer.")) return;
+    setOcupado("borrar");
+    const res = await fetch("/api/centro/incidencias", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ claves: [inc.clave] }),
+    }).catch(() => null);
+    const data = await res?.json().catch(() => ({}));
+    setMensaje(data?.mensaje || data?.error || (res?.ok ? "Borrado." : "No se pudo borrar."));
+    setOcupado(null);
+    onCambio?.();
+  }
+
   return (
     <article className={`cc-inc cc-inc-${inc.estado.toLowerCase()} cc-inc-${inc.nivel.toLowerCase()}`} aria-labelledby={`${id}-t`}>
       <button type="button" className="cc-inc-cabecera" aria-expanded={abierta} aria-controls={id} onClick={() => setAbierta(!abierta)}>
@@ -169,6 +183,11 @@ export function IncidenciaTarjeta({ inc, onCambio, abiertaInicial = false }: { i
               )}
             </div>
           )}
+          <div className="cc-acciones">
+            <button type="button" className="dsh-boton dsh-boton-mini" onClick={borrar} disabled={!!ocupado}>
+              <Trash2 size={14} aria-hidden="true" /> {ocupado === "borrar" ? "Borrando…" : "Borrar reporte"}
+            </button>
+          </div>
           {mensaje && <p role="status" className="dsh-muted">{mensaje}</p>}
         </div>
       )}

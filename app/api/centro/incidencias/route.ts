@@ -57,3 +57,21 @@ export async function POST(req: NextRequest) {
   const ok = await reintentarEnvios(ids, urlApp(req.nextUrl.origin), { actor, via: "DASHBOARD", clave, agente: inc?.agente || "envios" });
   return NextResponse.json({ ok, mensaje: ok ? "Reintento lanzado." : "No se pudo reintentar." });
 }
+
+const Borrar = z.object({
+  claves: z.array(z.string().min(1).max(191)).max(200).optional(),
+  limpiar: z.enum(["resueltas", "todas"]).optional(),
+});
+
+/** Borra reportes de averías: unos concretos (claves) o todas las resueltas / todas. */
+export async function DELETE(req: NextRequest) {
+  const { error } = await sesionOperador();
+  if (error) return error;
+  const parsed = Borrar.safeParse(await req.json().catch(() => ({})));
+  if (!parsed.success || (!parsed.data.claves?.length && !parsed.data.limpiar)) return NextResponse.json({ error: "Datos inválidos" }, { status: 400 });
+  const r = parsed.data.limpiar
+    ? await bridgeVigilante<{ ok?: boolean; borradas?: number }>("incidencias_limpiar", { estado: parsed.data.limpiar === "todas" ? "TODAS" : "RESUELTA" })
+    : await bridgeVigilante<{ ok?: boolean; borradas?: number }>("incidencia_borrar", { claves: parsed.data.claves });
+  if (!r?.ok) return NextResponse.json({ error: "vigilante.php no responde o no está actualizado" }, { status: 502 });
+  return NextResponse.json({ ok: true, borradas: r.borradas ?? 0, mensaje: `Borradas: ${r.borradas ?? 0}` });
+}

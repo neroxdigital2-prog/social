@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, Trash2 } from "lucide-react";
 import { AGENTES, NOMBRE_AGENTE, fechaHoraBD } from "@/lib/agentes";
 import { useCentro } from "@/components/centro/useCentro";
 import { PanelAgentes } from "@/components/centro/PanelAgentes";
@@ -46,6 +46,20 @@ function Incidencias({ onCambio }: { onCambio: () => void }) {
     cargar();
   }, [cargar]);
 
+  async function limpiar(modo: "resueltas" | "todas") {
+    const txt = modo === "resueltas" ? "¿Borrar TODOS los reportes ya resueltos? No se puede deshacer." : "¿Borrar TODOS los reportes (también los abiertos)? Si el fallo sigue, el vigilante lo volverá a abrir. No se puede deshacer.";
+    if (!window.confirm(txt)) return;
+    const res = await fetch("/api/centro/incidencias", {
+      method: "DELETE",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ limpiar: modo }),
+    }).catch(() => null);
+    const data = await res?.json().catch(() => ({}));
+    if (!res?.ok) setError(data?.error || "No se pudo borrar.");
+    await cargar();
+    onCambio();
+  }
+
   return (
     <section className="dsh-card" aria-labelledby="cc-historial-titulo">
       <header className="dsh-card-header">
@@ -53,9 +67,17 @@ function Incidencias({ onCambio }: { onCambio: () => void }) {
           <h2 id="cc-historial-titulo">Reporte de averías</h2>
           <p className="dsh-muted">Qué falló, a quién se avisó (canal, destino, fecha y hora, si se entregó) y quién lo resolvió.</p>
         </div>
-        <button type="button" className="dsh-boton dsh-boton-mini" onClick={cargar}>
-          <RefreshCw size={14} aria-hidden="true" /> Actualizar
-        </button>
+        <div className="cc-acciones">
+          <button type="button" className="dsh-boton dsh-boton-mini" onClick={cargar}>
+            <RefreshCw size={14} aria-hidden="true" /> Actualizar
+          </button>
+          <button type="button" className="dsh-boton dsh-boton-mini" onClick={() => limpiar("resueltas")}>
+            <Trash2 size={14} aria-hidden="true" /> Borrar resueltas
+          </button>
+          <button type="button" className="dsh-boton dsh-boton-mini" onClick={() => limpiar("todas")}>
+            <Trash2 size={14} aria-hidden="true" /> Borrar todas
+          </button>
+        </div>
       </header>
 
       <div className="cc-filtros">
