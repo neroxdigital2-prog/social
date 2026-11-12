@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { waitUntil } from "@vercel/functions";
 import { chatsOperador, enviarMensaje, escaparHtml, llamarTelegram, secretoWebhook } from "@/lib/telegram";
-import { bridgeVigilante, ejecutarVigilante, reintentarEnvios, resumenInforme } from "@/lib/vigilante";
+import { bridgeVigilante, ejecutarVigilante, reintentarEnvios, resolverIncidencia, resumenInforme, silenciarIncidencia } from "@/lib/vigilante";
 import { urlApp } from "@/lib/urlApp";
 
 export const maxDuration = 60;
@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 interface Actualizacion {
   message?: { chat: { id: number }; text?: string };
-  callback_query?: { id: string; data?: string; message?: { chat: { id: number }; message_id: number; text?: string } };
+  callback_query?: { id: string; data?: string; from?: { first_name?: string; last_name?: string; username?: string }; message?: { chat: { id: number }; message_id: number; text?: string } };
 }
 
 const AYUDA =
@@ -34,24 +34,26 @@ export async function POST(req: NextRequest) {
       await llamarTelegram("answerCallbackQuery", { callback_query_id: cq.id, text: "No autorizado" });
       return NextResponse.json({ ok: true });
     }
+    const quien = [cq.from?.first_name, cq.from?.last_name].filter(Boolean).join(" ") || cq.from?.username || "Operador";
+    const actor = `${quien}${cq.from?.username ? ` (@${cq.from.username})` : ""}`;
     const [accion, ...resto] = (cq.data || "").split(":");
     const clave = resto.join(":");
     let respuesta = "Acción no reconocida";
     let estado = "";
 
     if (accion === "r") {
-      const inc = await bridgeVigilante<{ datos?: { ids?: string[] } }>("incidencia_ver", { clave });
-      const ok = await reintentarEnvios(inc?.datos?.ids || [], base);
+      const inc = await bridgeVigilante<{ datos?: { ids?: string[] }; agente?: string }>("incidencia_ver", { clave });
+      const ok = await reintentarEnvios(inc?.datos?.ids || [], base, { actor, via: "TELEGRAM", clave, agente: inc?.agente || "envios" });
       respuesta = ok ? "Reintentando…" : "No se pudo reintentar";
       estado = ok ? "🔁 Reintento lanzado. Te aviso si vuelve a fallar." : "❌ No se pudo reintentar.";
     } else if (accion === "ok") {
-      await bridgeVigilante("incidencia_resolver", { clave });
-      respuesta = "Marcada como resuelta";
-      estado = "✅ Marcada como resuelta (si el fallo vuelve, te aviso).";
+      const ok = await resolverIncidencia(clave, actor, "TELEGRAM", "Marcada como resuelta manualmente");
+      respuesta = ok ? "Marcada como resuelta" : "Ya estaba resuelta";
+      estado = ok ? `✅ Resuelta por ${escaparHtml(actor)} (si el fallo vuelve, te aviso).` : "ℹ️ Esta incidencia ya estaba resuelta.";
     } else if (accion === "s") {
-      await bridgeVigilante("incidencia_silenciar", { clave });
-      respuesta = "Silenciada";
-      estado = "🔕 Silenciada hasta que se resuelva.";
+      const ok = await silenciarIncidencia(clave, actor, "TELEGRAM");
+      respuesta = ok ? "Silenciada" : "No estaba abierta";
+      estado = ok ? `🔕 Silenciada por ${escaparHtml(actor)} hasta que se resuelva.` : "ℹ️ La incidencia no estaba abierta.";
     }
 
     await llamarTelegram("answerCallbackQuery", { callback_query_id: cq.id, text: respuesta });

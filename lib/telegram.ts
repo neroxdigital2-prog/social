@@ -70,11 +70,23 @@ export async function enviarMensaje(chatId: string | number, html: string, boton
   });
 }
 
-/** Envía el aviso a todos los operadores configurados. */
-export async function avisarOperador(html: string, botones?: BotonTelegram[][]): Promise<{ enviados: number; error?: string }> {
+export interface EntregaTelegram {
+  chat: string;
+  ok: boolean;
+  error?: string;
+}
+
+/** Envía el aviso a todos los operadores configurados y devuelve la entrega por chat. */
+export async function avisarOperador(
+  html: string,
+  botones?: BotonTelegram[][]
+): Promise<{ enviados: number; error?: string; entregas: EntregaTelegram[] }> {
   const chats = chatsOperador();
-  if (!tokenBot() || chats.length === 0) return { enviados: 0, error: "Telegram sin configurar" };
+  if (!tokenBot() || chats.length === 0) {
+    return { enviados: 0, error: "Telegram sin configurar", entregas: [{ chat: "—", ok: false, error: !tokenBot() ? "Falta TELEGRAM_BOT_TOKEN" : "Falta TELEGRAM_CHAT_ID" }] };
+  }
   const resultados = await Promise.all(chats.map((c) => enviarMensaje(c, html, botones)));
-  const ok = resultados.filter((r) => r.ok).length;
-  return { enviados: ok, error: ok === chats.length ? undefined : resultados.find((r) => !r.ok)?.description };
+  const entregas = resultados.map((r, i) => ({ chat: chats[i], ok: !!r.ok, error: r.ok ? undefined : r.description || "Error desconocido" }));
+  const ok = entregas.filter((e) => e.ok).length;
+  return { enviados: ok, error: ok === chats.length ? undefined : entregas.find((e) => !e.ok)?.error, entregas };
 }

@@ -13,7 +13,7 @@ const ENLACES = [
   { href: "/whatsapp", label: "WhatsApp" },
   { href: "/agenda", label: "Agenda" },
   { href: "/configuracion", label: "Configuración" },
-  { href: "/salud", label: "🩺 Salud" },
+  { href: "/centro-control", label: "🧭 Centro de control" },
 ];
 
 export function NavLinks() {

@@ -3,15 +3,10 @@ import { auth } from "@/auth";
 import { bridgeVigilante, ejecutarVigilante, type LatidoVigilante } from "@/lib/vigilante";
 import { telegramConfigurado } from "@/lib/telegram";
 import { urlApp } from "@/lib/urlApp";
+import { esOperador } from "@/lib/operador";
 
 export const maxDuration = 60;
 export const dynamic = "force-dynamic";
-
-/** Si VIGILANTE_ADMINS (emails separados por comas) existe, solo esos usuarios ven el vigilante. */
-function esOperador(email?: string | null) {
-  const lista = (process.env.VIGILANTE_ADMINS || "").split(",").map((e) => e.trim().toLowerCase()).filter(Boolean);
-  return lista.length === 0 || (!!email && lista.includes(email.toLowerCase()));
-}
 
 /** Estado del vigilante para el Dashboard. */
 export async function GET() {

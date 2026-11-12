@@ -3,14 +3,13 @@ import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { COOKIE_RESUELTAS, leerResueltas } from "@/lib/alertasResueltas";
 import { Building2, CalendarDays, Plus, Sparkles } from "lucide-react";
-import { BannerSaludCompacto } from "@/components/salud/BannerSaludCompacto";
 import { cargarDashboard } from "@/lib/dashboard";
 import { TarjetaKpi } from "@/components/dashboard/TarjetaKpi";
 import { GraficaActividad } from "@/components/dashboard/GraficaActividad";
 import { ProximasPublicaciones } from "@/components/dashboard/ProximasPublicaciones";
 import { PanelAlertas } from "@/components/dashboard/PanelAlertas";
 import { EstadoRedes } from "@/components/dashboard/EstadoRedes";
-import { EstadoVigilante } from "@/components/dashboard/EstadoVigilante";
+import { PanelAgentesDashboard } from "@/components/centro/CentroControl";
 
 export const dynamic = "force-dynamic";
 
@@ -44,7 +43,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: { 
 
   return (
     <main className="dsh">
-      <BannerSaludCompacto />
+      <PanelAgentesDashboard />
 
       <header className="dsh-cabecera">
         <div>
@@ -67,7 +66,6 @@ export default async function DashboardPage({ searchParams }: { searchParams: { 
           <ProximasPublicaciones items={datos.proximas} empresaId={datos.empresaId} />
         </div>
         <aside className="dsh-columna-lateral" aria-label="Estado">
-          <EstadoVigilante />
           <PanelAlertas alertas={datos.alertas} ocultas={datos.alertasOcultas} empresaId={datos.empresaId} />
           <EstadoRedes redes={datos.redes} empresaId={datos.empresaId} />
         </aside>
