@@ -252,6 +252,19 @@ export function PublicacionCard({ publicacion }: { publicacion: Publicacion }) {
   }
 
   const [duplicando, setDuplicando] = useState(false);
+  const [copiado, setCopiado] = useState(false);
+
+  async function copiarParaGrupos() {
+    const tags = publicacion.hashtags.map((t) => "#" + t.replace(/^#+/, "")).join(" ");
+    const textoFinal = [titulo, texto, tags].filter(Boolean).join("\n\n");
+    try {
+      await navigator.clipboard.writeText(textoFinal);
+      setCopiado(true);
+      setTimeout(() => setCopiado(false), 2500);
+    } catch {
+      setError("No se pudo copiar. Selecciona el texto y cópialo a mano.");
+    }
+  }
 
   async function duplicarPublicacion() {
     setDuplicando(true);
@@ -481,6 +494,17 @@ export function PublicacionCard({ publicacion }: { publicacion: Publicacion }) {
             <span className="tag">#{tag.replace(/^#+/, "")}</span>{" "}
           </span>
         ))}
+      </div>
+
+      <div style={{ display: "flex", gap: "0.4rem", flexWrap: "wrap", marginTop: "0.5rem" }}>
+        <button type="button" className="btn-secundario" onClick={copiarParaGrupos} title="Copia título, texto y hashtags para pegarlos en un grupo de Facebook">
+          {copiado ? "✅ Copiado" : "📋 Copiar para grupos"}
+        </button>
+        {imagenUrl && (
+          <a className="btn-secundario" href={imagenUrl} target="_blank" rel="noopener noreferrer" download style={{ textDecoration: "none" }}>
+            ⬇ Imagen
+          </a>
+        )}
       </div>
 
       {publicacion.fechaProgramada && (
