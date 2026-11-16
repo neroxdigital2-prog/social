@@ -3,7 +3,7 @@ import { waitUntil } from "@vercel/functions";
 import { codigoVinculoValido, enviarMensaje, esChatOperador, escaparHtml, llamarTelegram, secretoWebhook, vincularChat } from "@/lib/telegram";
 import { bridgeVigilante, ejecutarVigilante, enviarInformeSemanal, reintentarEnvios, resolverIncidencia, resumenInforme, silenciarIncidencia } from "@/lib/vigilante";
 import { urlApp } from "@/lib/urlApp";
-import { bridgeAuto } from "@/lib/autopiloto/motor";
+import { bridgeAuto, empresasConPiloto } from "@/lib/autopiloto/motor";
 
 export const maxDuration = 60;
 export const dynamic = "force-dynamic";
@@ -14,7 +14,7 @@ interface Actualizacion {
 }
 
 const AYUDA =
-  "🛡️ <b>Vigilante de Nerox Social IA</b>\n\nCada 15 min reviso IONOS, publicaciones, envíos a redes y conexiones.\n• Lo que puedo arreglar (reintentos, imagen que falta, Reel → imagen, límites, tokens que caducan) lo arreglo solo y te lo cuento.\n• Lo que necesita una persona te lo aviso con la causa y los pasos.\n• De noche (23–8) solo te aviso de lo crítico; lo demás va en el parte de las 09:00.\n• Si una avería crítica no se atiende en 30 min, insisto y mando email.\n\n/estado — revisar ahora\n/incidencias — ver abiertas\n/informe — informe de 7 días\n/id — tu chat_id";
+  "🛡️ <b>Vigilante de Nerox Social IA</b>\n\nCada 15 min reviso IONOS, publicaciones, envíos a redes y conexiones.\n• Lo que puedo arreglar (reintentos, imagen que falta, Reel → imagen, límites, tokens que caducan) lo arreglo solo y te lo cuento.\n• Lo que necesita una persona te lo aviso con la causa y los pasos.\n• De noche (23–8) solo te aviso de lo crítico; lo demás va en el parte de las 09:00.\n• Si una avería crítica no se atiende en 30 min, insisto y mando email.\n\n/estado — revisar ahora\n/incidencias — ver abiertas\n/informe — informe de 7 días\n/idea — añadir ideas a la cola del piloto\n/id — tu chat_id";
 
 function autorizado(chatId: number | string) {
   return esChatOperador(chatId);
@@ -113,6 +113,27 @@ export async function POST(req: NextRequest) {
         .then((i) => enviarMensaje(chatId, resumenInforme(i)))
         .catch((e) => enviarMensaje(chatId, `❌ Error revisando: ${escaparHtml(String(e))}`))
     );
+  } else if (comando === "/idea") {
+    const idea = msg.text.trim().replace(/^\/idea(@\S+)?\s*/i, "").trim();
+    if (idea.length < 4) {
+      await enviarMensaje(chatId, "Escribe la idea después del comando, por ejemplo:\n<code>/idea Web para clínicas de fisioterapia: reservas online</code>\n\nPuedes pegar varias, una por línea.");
+    } else {
+      const empresas = await empresasConPiloto();
+      const e = empresas[0];
+      if (!e) {
+        await enviarMensaje(chatId, "⚠️ No hay ninguna empresa con el piloto automático activo. Actívalo en Generador → 🤖 Piloto automático.");
+      } else {
+        const nuevas = idea.split(/\n+/).map((x) => x.replace(/^[-•*\d.)\s]+/, "").trim()).filter((x) => x.length > 3);
+        const config = { ...e.config, campana: { ...e.config.campana, ideas: [...nuevas, ...e.config.campana.ideas.filter((x) => !nuevas.includes(x))] } };
+        const r = await bridgeAuto<{ ok?: boolean }>("config_guardar", { empresaId: e.empresaId, activo: true, config, actor: "Telegram /idea" });
+        await enviarMensaje(
+          chatId,
+          r?.ok
+            ? `💡 ${nuevas.length} idea(s) añadida(s) a la cola de <b>${escaparHtml(e.nombre)}</b> (se usan primero).${e.config.campana.activa ? `\nSaldrán en el hueco de las ${e.config.campana.hora}.` : "\n⚠️ La cola de ideas está desactivada: actívala en el Piloto automático."}`
+            : "❌ No pude guardar la idea."
+        );
+      }
+    }
   } else if (comando === "/informe") {
     await enviarMensaje(chatId, "📊 Preparando el informe de los últimos 7 días…");
     waitUntil(enviarInformeSemanal(`${base}/centro-control`).then((ok) => (ok ? undefined : enviarMensaje(chatId, "❌ No se pudo generar el informe."))));

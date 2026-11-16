@@ -1749,3 +1749,9 @@ body { font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto
 .pa-dia header select { width: auto; max-width: 62%; }
 .pa-dia .pa-chip { display: flex; grid-template-columns: none; color: var(--color-text); }
 .pa-dia .pa-chip input { width: 16px; }
+
+.pa-campo { display: grid; gap: 0.25rem; font-size: 0.78rem; color: var(--color-text-muted); }
+.pa-campo textarea, .pa-horas select { font: inherit; font-size: 0.85rem; padding: 0.45rem 0.55rem; border: 1px solid hsl(240 6% 85%); border-radius: 8px; color: var(--color-text); background: #fff; width: 100%; box-sizing: border-box; resize: vertical; }
+.pa-ideas { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 0.3rem; max-height: 180px; overflow: auto; }
+.pa-ideas li { font-size: 0.76rem; padding: 0.2rem 0.55rem; border-radius: 999px; background: var(--color-surface); }
+.pa-idea-usada { opacity: 0.6; text-decoration: line-through; }

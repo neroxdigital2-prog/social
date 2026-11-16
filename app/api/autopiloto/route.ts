@@ -24,10 +24,11 @@ export async function GET(req: NextRequest) {
   const { error, nombre } = await acceso(empresaId);
   if (error) return error;
 
-  const [cfg, proximas, redes] = await Promise.all([
+  const [cfg, proximas, redes, hist] = await Promise.all([
     bridgeAuto<{ existe?: boolean; activo?: boolean; config?: Partial<ConfigAutoPiloto>; actualizadoPor?: string; ultimaEjecucion?: string; ultimoResultado?: unknown; error?: string }>("config_leer", { empresaId }),
     bridgeAuto<unknown[]>("proximas", { empresaId, dias: 8 }),
     bridgeAuto<string[]>("redes_empresa", { empresaId }),
+    bridgeAuto<{ noticias?: { noticiaUrl: string; noticiaTitulo: string }[] }>("historial", { empresaId, dias: 365 }),
   ]);
   if (!cfg || cfg.error) {
     return NextResponse.json({ instalado: false, error: "autopiloto.php no responde: sube autopiloto.php y ejecuta autopiloto.sql en IONOS." }, { status: 200 });
@@ -46,6 +47,7 @@ export async function GET(req: NextRequest) {
     proximas: Array.isArray(proximas) ? proximas : [],
     pendientes: pendientes.map((h) => ({ hueco: h.hueco, fecha: h.fecha, hora: h.hora, formato: h.formato })),
     redesConectadas: Array.isArray(redes) ? redes : [],
+    ideasUsadas: (hist?.noticias || []).filter((n) => n.noticiaUrl?.startsWith("idea:")).map((n) => n.noticiaUrl),
   });
 }
 

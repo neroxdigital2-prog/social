@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { CalendarClock, CheckCircle2, Newspaper, RefreshCw, Save } from "lucide-react";
-import { NOMBRE_DIA, type ConfigAutoPiloto, type DiaPlantilla, type FormatoAuto } from "@/lib/autopiloto/plantilla";
+import { CAMPANA_DEFECTO, NOMBRE_DIA, SECTORES_WEB, type ConfigAutoPiloto, type DiaPlantilla, type FormatoAuto } from "@/lib/autopiloto/plantilla";
 
 interface Proxima {
   id: number;
@@ -33,6 +33,11 @@ interface Datos {
   proximas: Proxima[];
   pendientes: { hueco: string; fecha: string; hora: string; formato: string }[];
   redesConectadas: string[];
+  ideasUsadas?: string[];
+}
+
+function claveIdea(idea: string): string {
+  return `idea:${idea.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").slice(0, 120)}`;
 }
 
 interface NoticiaVista {
@@ -51,7 +56,7 @@ const FORMATOS: { id: FormatoAuto; texto: string }[] = [
   { id: "NADA", texto: "— Descanso" },
 ];
 const RED: Record<string, string> = { FACEBOOK: "Facebook", INSTAGRAM: "Instagram", GOOGLE: "Google Business", LINKEDIN: "LinkedIn", TWITTER: "X" };
-const HUECO: Record<string, string> = { PRINCIPAL: "Calendario", NOTICIA: "Noticia", HISTORIA: "Historia" };
+const HUECO: Record<string, string> = { PRINCIPAL: "Calendario", NOTICIA: "Noticia", HISTORIA: "Historia", CAMPANA: "Campaña" };
 const ESTADO: Record<string, string> = { GENERANDO: "⏳ Generando", LISTA: "✅ Programada", PENDIENTE_APROBACION: "🟡 Pendiente de aprobar", ERROR: "❌ Error" };
 
 const fechaCorta = (s: string) => `${NOMBRE_DIA[String(((new Date(s.replace(" ", "T")).getDay() + 6) % 7) + 1)]?.slice(0, 3)} ${s.slice(8, 10)}/${s.slice(5, 7)} ${s.slice(11, 16)}`;
@@ -319,6 +324,95 @@ export function PilotoAutomatico({ empresaId }: { empresaId: string }) {
                 </small>
               </li>
             ))}
+          </ul>
+        )}
+      </fieldset>
+
+      {/* Campaña / cola de ideas */}
+      <fieldset className="pa-bloque">
+        <legend>📣 Campaña y cola de ideas (una publicación distinta por idea)</legend>
+        <label className="pa-chip">
+          <input type="checkbox" checked={config.campana.activa} onChange={(e) => setConfig({ ...config, campana: { ...config.campana, activa: e.target.checked } })} />
+          Activar la cola de ideas
+        </label>
+        <div className="pa-horas">
+          <label>
+            <span>Nombre de la campaña</span>
+            <input value={config.campana.nombre} onChange={(e) => setConfig({ ...config, campana: { ...config.campana, nombre: e.target.value } })} />
+          </label>
+          <label>
+            <span>Hora</span>
+            <input type="time" value={config.campana.hora} onChange={(e) => setConfig({ ...config, campana: { ...config.campana, hora: e.target.value } })} />
+          </label>
+          <label>
+            <span>Formato</span>
+            <select value={config.campana.formato} onChange={(e) => setConfig({ ...config, campana: { ...config.campana, formato: e.target.value as "REEL" | "IMAGEN" } })}>
+              <option value="REEL">🎬 Reel 9:16</option>
+              <option value="IMAGEN">🖼️ Imagen 9:16</option>
+            </select>
+          </label>
+        </div>
+        <div className="pa-checks">
+          <span className="pa-mini">Días:</span>
+          {["1", "2", "3", "4", "5", "6", "7"].map((d) => (
+            <label key={d} className="pa-chip">
+              <input
+                type="checkbox"
+                checked={config.campana.dias.includes(Number(d))}
+                onChange={(e) =>
+                  setConfig({
+                    ...config,
+                    campana: { ...config.campana, dias: e.target.checked ? [...config.campana.dias, Number(d)].sort() : config.campana.dias.filter((x) => x !== Number(d)) },
+                  })
+                }
+              />
+              {NOMBRE_DIA[d].slice(0, 3)}
+            </label>
+          ))}
+        </div>
+        <div className="pa-horas">
+          <label>
+            <span>Llamada a la acción</span>
+            <input value={config.campana.cta} onChange={(e) => setConfig({ ...config, campana: { ...config.campana, cta: e.target.value } })} />
+          </label>
+          <label>
+            <span>Palabra clave</span>
+            <input value={config.campana.palabraClave} onChange={(e) => setConfig({ ...config, campana: { ...config.campana, palabraClave: e.target.value.toUpperCase().replace(/\s+/g, "") } })} />
+          </label>
+        </div>
+        <label className="pa-campo">
+          <span>Enfoque (usa {"{idea}"} donde va cada sector o idea)</span>
+          <textarea rows={3} value={config.campana.plantillaTema} onChange={(e) => setConfig({ ...config, campana: { ...config.campana, plantillaTema: e.target.value } })} />
+        </label>
+        <label className="pa-campo">
+          <span>
+            Ideas — una por línea · {config.campana.ideas.filter((i) => !(datos.ideasUsadas || []).includes(claveIdea(i))).length} pendientes de{" "}
+            {config.campana.ideas.length} · también con <code>/idea</code> en Telegram (por ejemplo, lo que te da ChatGPT)
+          </span>
+          <textarea
+            rows={8}
+            value={config.campana.ideas.join("\n")}
+            onChange={(e) => setConfig({ ...config, campana: { ...config.campana, ideas: e.target.value.split("\n").map((x) => x.trimStart()) } })}
+          />
+        </label>
+        <div className="pa-checks">
+          <button
+            type="button"
+            className="crm-btn"
+            onClick={() => setConfig({ ...config, campana: { ...CAMPANA_DEFECTO, activa: true, hora: config.campana.hora, dias: config.campana.dias, ideas: SECTORES_WEB } })}
+          >
+            🌐 Cargar «Web para cada sector» ({SECTORES_WEB.length} sectores)
+          </button>
+        </div>
+        {(datos.ideasUsadas || []).length > 0 && (
+          <ul className="pa-ideas">
+            {config.campana.ideas
+              .filter((i) => i.trim())
+              .map((i) => (
+                <li key={i} className={(datos.ideasUsadas || []).includes(claveIdea(i)) ? "pa-idea-usada" : undefined}>
+                  {(datos.ideasUsadas || []).includes(claveIdea(i)) ? "✅" : "⏳"} {i}
+                </li>
+              ))}
           </ul>
         )}
       </fieldset>

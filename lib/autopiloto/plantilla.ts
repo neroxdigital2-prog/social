@@ -32,7 +32,81 @@ export interface ConfigAutoPiloto {
   diasAntelacion: number; // cuántos días por delante se preparan
   plantilla: Record<string, DiaPlantilla>; // "1".."7"
   categorias: CategoriaNoticias[];
+  campana: CampanaIdeas;
 }
+
+/** Cola de ideas (campañas, ideas de ChatGPT vía Telegram /idea): una publicación distinta por idea. */
+export interface CampanaIdeas {
+  activa: boolean;
+  nombre: string;
+  hora: string; // "19:30"
+  dias: number[]; // 1=lunes … 7=domingo
+  formato: "REEL" | "IMAGEN";
+  segundos: number;
+  cta: string;
+  palabraClave: string;
+  plantillaTema: string; // {idea} se sustituye por cada línea
+  ideas: string[];
+}
+
+export const SECTORES_WEB = [
+  "Clínicas odontológicas",
+  "Zapaterías",
+  "Arreglos de ropa y costura",
+  "Churrerías",
+  "Peluquerías",
+  "Barberías",
+  "Centros de estética y uñas",
+  "Fisioterapeutas",
+  "Psicólogos",
+  "Clínicas veterinarias",
+  "Ópticas",
+  "Clínicas médicas privadas",
+  "Academias y centros de formación",
+  "Autoescuelas",
+  "Gimnasios y entrenadores personales",
+  "Restaurantes",
+  "Bares y cafeterías",
+  "Panaderías y pastelerías",
+  "Fruterías y carnicerías de barrio",
+  "Floristerías",
+  "Ferreterías",
+  "Talleres mecánicos",
+  "Lavaderos de coches",
+  "Inmobiliarias",
+  "Gestorías y asesorías",
+  "Abogados",
+  "Arquitectos e interioristas",
+  "Empresas de reformas",
+  "Fontaneros y electricistas",
+  "Cerrajeros",
+  "Tiendas de ropa y moda",
+  "Joyerías",
+  "Tiendas de mascotas",
+  "Escuelas infantiles",
+  "Hoteles y casas rurales",
+  "Fotógrafos",
+  "Organizadores de bodas y eventos",
+  "Autónomos y freelancers",
+  "Emprendedores que empiezan",
+  "Pequeños comercios de barrio",
+  "Medianas empresas e industria",
+  "Grandes empresas",
+];
+
+export const CAMPANA_DEFECTO: CampanaIdeas = {
+  activa: false,
+  nombre: "Web para cada sector",
+  hora: "19:30",
+  dias: [1, 2, 3, 4, 5, 6],
+  formato: "REEL",
+  segundos: 30,
+  cta: "Comenta WEB y te enseño cómo sería la web de tu negocio.",
+  palabraClave: "WEB",
+  plantillaTema:
+    "Web para {idea}: muestra en los primeros 3 segundos el problema concreto de este tipo de negocio sin web (clientes que buscan en Google o ChatGPT y acaban en la competencia, llamadas para preguntar lo mismo, reservas perdidas) y cómo una web profesional de Nerox lo resuelve: aparecer en Google y en asistentes de IA, reservas o pedidos online, WhatsApp directo, confianza. Habla al dueño de ese negocio con ejemplos de su día a día.",
+  ideas: SECTORES_WEB,
+};
 
 export const NOMBRE_DIA: Record<string, string> = { "1": "Lunes", "2": "Martes", "3": "Miércoles", "4": "Jueves", "5": "Viernes", "6": "Sábado", "7": "Domingo" };
 
@@ -146,6 +220,7 @@ export const CONFIG_DEFECTO: ConfigAutoPiloto = {
   diasAntelacion: 2,
   plantilla: PLANTILLA_DEFECTO,
   categorias: CATEGORIAS_DEFECTO,
+  campana: CAMPANA_DEFECTO,
 };
 
 /** Completa una configuración guardada con los valores por defecto (por si faltan campos nuevos). */
@@ -166,6 +241,7 @@ export function normalizarConfig(c?: Partial<ConfigAutoPiloto> | null): ConfigAu
     diasNoticia: Array.isArray(c.diasNoticia) ? c.diasNoticia : base.diasNoticia,
     redes: Array.isArray(c.redes) ? c.redes : base.redes,
     diasAntelacion: Math.min(7, Math.max(1, Number(c.diasAntelacion) || base.diasAntelacion)),
+    campana: { ...base.campana, ...(c.campana || {}), ideas: Array.isArray(c.campana?.ideas) ? c.campana!.ideas : base.campana.ideas },
   };
 }
 

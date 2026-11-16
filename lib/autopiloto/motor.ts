@@ -17,7 +17,7 @@ const BRIDGE_SECRET = process.env.BRIDGE_SECRET || "";
 const MARGEN_MIN = 40; // no se preparan huecos que salen en menos de 40 min
 const PRESUPUESTO_MS = 170_000; // no se empieza un trabajo nuevo pasado este tiempo (límite Vercel 300 s)
 
-export type Hueco = "PRINCIPAL" | "NOTICIA" | "HISTORIA";
+export type Hueco = "PRINCIPAL" | "NOTICIA" | "HISTORIA" | "CAMPANA";
 
 export interface EmpresaAuto extends PerfilAuto {
   empresaId: string;
@@ -102,6 +102,7 @@ export async function huecosPendientes(e: EmpresaAuto, ahora = new Date()): Prom
     if (dia && dia.formato !== "NADA") add("PRINCIPAL", c.horaPrincipal, dia.formato);
     if (c.diasNoticia.includes(Number(diaSemana))) add("NOTICIA", c.horaNoticia, "IMAGEN");
     if (c.historiasDiarias && dia?.formato !== "HISTORIAS") add("HISTORIA", c.horaHistoria, "HISTORIA");
+    if (c.campana.activa && c.campana.ideas.length && c.campana.dias.includes(Number(diaSemana))) add("CAMPANA", c.campana.hora, c.campana.formato);
   }
   const limite = ahora.getTime() + MARGEN_MIN * 60_000;
   const futuros = candidatos.filter((h) => Date.parse(h.iso) > limite);
@@ -136,6 +137,11 @@ async function tarjeta(op: Parameters<typeof renderizarTarjeta>[0]): Promise<str
 }
 
 // ───────────── generación de un hueco ─────────────
+
+/** Identificador estable de una idea de campaña (se guarda como "noticia" usada para no repetirla). */
+export function claveIdea(idea: string): string {
+  return `idea:${idea.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").slice(0, 120)}`;
+}
 
 interface Contexto {
   historial: Previa[];
@@ -258,6 +264,38 @@ export async function generarHueco(e: EmpresaAuto, h: HuecoPendiente, ctx: Conte
       };
     }
 
+    if (h.hueco === "CAMPANA") {
+      const camp = e.config.campana;
+      const usadas = new Set(ctx.noticiasUsadas.filter((n) => n.url.startsWith("idea:")).map((n) => n.url));
+      const idea = camp.ideas.map((t) => t.trim()).find((t) => t && !usadas.has(claveIdea(t)));
+      if (!idea) throw new Error(`Campaña «${camp.nombre}» terminada: todas las ideas ya se han usado. Añade más en el panel o con /idea en Telegram.`);
+      const dia: DiaPlantilla = {
+        formato: camp.formato === "IMAGEN" ? "IMAGEN" : "REEL",
+        objetivo: `Captar clientes: ${idea}`,
+        tema: camp.plantillaTema.includes("{idea}") ? camp.plantillaTema.replaceAll("{idea}", idea) : `${camp.plantillaTema} — ${idea}`,
+        cta: camp.cta,
+        palabraClave: camp.palabraClave,
+        segundos: camp.segundos || 30,
+        diapositivas: 0,
+        reelPrueba: false,
+      };
+      const pub = await redactarPrincipal(e, dia, ctx.historial);
+      ctx.historial.unshift({ titulo: pub.titulo, texto: pub.texto });
+      const noticiaIdea: Noticia = { titulo: idea, url: claveIdea(idea), fuente: `Campaña: ${camp.nombre}`, fecha: null, categoria: "campana", categoriaNombre: camp.nombre };
+      ctx.noticiasUsadas.push({ url: noticiaIdea.url, titulo: idea });
+      const imagenUrl = await imagen916(pub.imagenPrompt);
+      if (dia.formato === "IMAGEN") {
+        const id = await crearPub(reservaId, e, h, pub, "IMAGEN", redesPara(e, ctx, "IMAGEN"), { imagenUrl, noticia: noticiaIdea });
+        await completar(reservaId, id, aprobacion, { imagenUrl, formato: "IMAGEN" });
+        return { hueco: h.hueco, cuando, formato: `Imagen 9:16 · ${idea}`, ok: true, titulo: pub.titulo, publicacionId: id, pendienteAprobacion: aprobacion };
+      }
+      const id = await crearPub(reservaId, e, h, pub, "VIDEO", redesPara(e, ctx, "VIDEO"), { imagenUrl, noticia: noticiaIdea });
+      const reel = await generarReel({ empresa: e.nombre, titulo: pub.titulo, texto: pub.texto, imagenPrompt: pub.imagenPrompt, imagenUrl, segundos: dia.segundos, cta: ctaCorta(dia) });
+      const videoUrl = await subirVideo(reel.mp4);
+      await completar(reservaId, id, aprobacion, { videoUrl, imagenUrl, formato: "VIDEO" });
+      return { hueco: h.hueco, cuando, formato: `Reel ${Math.round(reel.segundos)} s · ${idea}`, ok: true, titulo: pub.titulo, publicacionId: id, pendienteAprobacion: aprobacion };
+    }
+
     if (h.hueco === "NOTICIA") {
       if (!ctx.noticias) ctx.noticias = await buscarNoticias(e.config.categorias);
       const usadas = new Set(ctx.noticiasUsadas.map((n) => n.url));
@@ -316,7 +354,7 @@ export async function ejecutarAutopiloto(base: string, opciones: { empresaId?: s
     for (const h of huecos) {
       if (Date.now() - inicio > PRESUPUESTO_MS || trabajos >= (opciones.maxTrabajos ?? 6)) break;
       // Un vídeo tarda 1-2 min: si no queda margen, se deja para la siguiente pasada
-      if (h.hueco === "PRINCIPAL" && h.formato !== "HISTORIAS" && Date.now() - inicio > 60_000) continue;
+      if (((h.hueco === "PRINCIPAL" && h.formato !== "HISTORIAS") || (h.hueco === "CAMPANA" && h.formato === "REEL")) && Date.now() - inicio > 60_000) continue;
       trabajos++;
       const r = await generarHueco(e, h, ctx);
       if (r) propios.push(r);
