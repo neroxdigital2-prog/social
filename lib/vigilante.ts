@@ -734,6 +734,20 @@ export async function ejecutarVigilante(base: string, opciones: { revisarTokens?
       await fetch(enlace(base, "/api/cron/autopiloto"), { headers: { Authorization: `Bearer ${secretoCron}` }, cache: "no-store" })
         .then((r) => r.ok && informe.revisado.push("Piloto automático lanzado"))
         .catch(() => {});
+      // Métricas reales de las publicaciones (para Resultados)
+      await fetch(enlace(base, "/api/cron/metricas"), { headers: { Authorization: `Bearer ${secretoCron}` }, cache: "no-store", signal: AbortSignal.timeout(25_000) })
+        .then(async (r) => {
+          const d = await r.json().catch(() => ({}));
+          if (d?.instalado) informe.revisado.push(`Métricas leídas: ${d.leidas}${d.errores ? ` (${d.errores} sin datos)` : ""}`);
+        })
+        .catch(() => {});
+      // Seguidores reales de IG/FB (Crecimiento): un valor por día, se actualiza cada hora
+      await fetch(enlace(base, "/api/cron/seguidores"), { headers: { Authorization: `Bearer ${secretoCron}` }, cache: "no-store", signal: AbortSignal.timeout(20_000) })
+        .then(async (r) => {
+          const d = await r.json().catch(() => ({}));
+          if (d?.instalado && d?.cuentas) informe.revisado.push(`Seguidores leídos: ${d.leidas}/${d.cuentas}`);
+        })
+        .catch(() => {});
     }
     revisados.add("token");
     const redes = (await bridgeVigilante<RedCredencial[]>("redes")) || [];

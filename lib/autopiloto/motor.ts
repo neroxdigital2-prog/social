@@ -182,7 +182,7 @@ async function crearPub(
   pub: PublicacionAuto,
   formato: "IMAGEN" | "VIDEO" | "HISTORIA",
   redes: string[],
-  extra: { imagenUrl?: string; reelPrueba?: boolean; noticia?: Noticia; fechaProgramada?: string } = {}
+  extra: { imagenUrl?: string; reelPrueba?: boolean; noticia?: Noticia; fechaProgramada?: string; criterio?: Record<string, unknown> } = {}
 ): Promise<string> {
   const r = await bridgeAuto<{ ok?: boolean; publicacionId?: string; error?: string }>("crear", {
     reservaId,
@@ -192,6 +192,19 @@ async function crearPub(
     redes,
     pub: { ...pub, formato, imagenUrl: extra.imagenUrl || null, reelPrueba: !!extra.reelPrueba },
     noticia: extra.noticia ? { url: extra.noticia.url, titulo: extra.noticia.titulo, fuente: extra.noticia.fuente } : null,
+    // Criterio con el que se creó (para evaluar en Resultados qué funciona)
+    criterio: {
+      origen: h.hueco,
+      formato,
+      tipo: pub.tipo,
+      dia: NOMBRE_DIA[h.diaSemana],
+      hora: h.hora,
+      reelPrueba: !!extra.reelPrueba,
+      hashtags: pub.hashtags.length,
+      ...(extra.noticia && !extra.noticia.url.startsWith("idea:") ? { categoria: extra.noticia.categoriaNombre, fuente: extra.noticia.fuente } : {}),
+      ...(extra.noticia?.url.startsWith("idea:") ? { idea: extra.noticia.titulo } : {}),
+      ...(extra.criterio || {}),
+    },
   });
   if (!r?.publicacionId) throw new Error(r?.error || "No se pudo crear la publicación en IONOS");
   return r.publicacionId;
@@ -234,6 +247,7 @@ export async function generarHueco(e: EmpresaAuto, h: HuecoPendiente, ctx: Conte
       const pub = await redactarPrincipal(e, dia, ctx.historial);
       ctx.historial.unshift({ titulo: pub.titulo, texto: pub.texto });
       const capturas = app.imagenes || [];
+      const criterioActual = { objetivo: dia.objetivo, palabraClave: clave, app: app.nombre, capturasReales: capturas.length > 0, segundos: dia.segundos, formatoPlan: formato };
       if (formato === "HISTORIAS") {
         const fondoIA = capturas.length ? null : await imagen916(pub.imagenPrompt).catch(() => null);
         const slides = pub.diapositivas.length ? pub.diapositivas : [{ titulo: app.nombre, texto: app.resumen || "" }];
@@ -245,7 +259,7 @@ export async function generarHueco(e: EmpresaAuto, h: HuecoPendiente, ctx: Conte
           const rid = i === 0 ? reservaId : await reservar(e, h, `APP_${i + 1}`);
           if (rid === null) continue;
           const fechaProgramada = new Date(Date.parse(h.iso) + i * 2 * 60_000).toISOString();
-          const id = await crearPub(rid, e, h, { ...pub, titulo: `${pub.titulo} (${i + 1}/${slides.length})` }, "HISTORIA", redes, { imagenUrl: url, fechaProgramada });
+          const id = await crearPub(rid, e, h, { ...pub, titulo: `${pub.titulo} (${i + 1}/${slides.length})` }, "HISTORIA", redes, { imagenUrl: url, fechaProgramada, criterio: criterioActual });
           await completar(rid, id, aprobacion, { imagenUrl: url, formato: "HISTORIA" });
           if (i === 0) primeraId = id;
         }
@@ -253,7 +267,7 @@ export async function generarHueco(e: EmpresaAuto, h: HuecoPendiente, ctx: Conte
         return { hueco: h.hueco, cuando, formato: `${slides.length} historias · ${app.nombre}`, ok: true, titulo: pub.titulo, publicacionId: primeraId, pendienteAprobacion: aprobacion };
       }
       const imagenUrl = capturas[0] || (await imagen916(pub.imagenPrompt));
-      const id = await crearPub(reservaId, e, h, pub, "VIDEO", redesPara(e, ctx, "VIDEO"), { imagenUrl });
+      const id = await crearPub(reservaId, e, h, pub, "VIDEO", redesPara(e, ctx, "VIDEO"), { imagenUrl, criterio: criterioActual });
       const reel = await generarReel({ empresa: e.nombre, titulo: pub.titulo, texto: pub.texto, imagenPrompt: pub.imagenPrompt, imagenUrl, segundos: dia.segundos, cta: `Comenta ${clave}`, imagenesPropias: capturas });
       const videoUrl = await subirVideo(reel.mp4);
       await completar(reservaId, id, aprobacion, { videoUrl, imagenUrl, formato: "VIDEO" });
@@ -286,6 +300,15 @@ export async function generarHueco(e: EmpresaAuto, h: HuecoPendiente, ctx: Conte
       }
       const pub = await redactarPrincipal(e, dia, ctx.historial);
       ctx.historial.unshift({ titulo: pub.titulo, texto: pub.texto });
+      const criterioActual = {
+        objetivo: dia.objetivo,
+        tema: dia.tema.slice(0, 200),
+        cta: dia.cta,
+        palabraClave: dia.palabraClave,
+        segundos: dia.segundos,
+        formatoPlan: dia.formato,
+        capturasReales: capturasApp.length > 0,
+      };
 
       if (dia.formato === "HISTORIAS") {
         const fondo = await imagen916(pub.imagenPrompt).catch(() => null);
@@ -298,7 +321,7 @@ export async function generarHueco(e: EmpresaAuto, h: HuecoPendiente, ctx: Conte
           const rid = i === 0 ? reservaId : await reservar(e, h, `PRINCIPAL_${i + 1}`);
           if (rid === null) continue;
           const fechaProgramada = new Date(Date.parse(h.iso) + i * 2 * 60_000).toISOString();
-          const id = await crearPub(rid, e, h, { ...pub, titulo: `${pub.titulo} (${i + 1}/${slides.length})` }, "HISTORIA", redes, { imagenUrl: url, fechaProgramada });
+          const id = await crearPub(rid, e, h, { ...pub, titulo: `${pub.titulo} (${i + 1}/${slides.length})` }, "HISTORIA", redes, { imagenUrl: url, fechaProgramada, criterio: criterioActual });
           await completar(rid, id, aprobacion, { imagenUrl: url, formato: "HISTORIA" });
           if (i === 0) primeraId = id;
         }
@@ -308,7 +331,7 @@ export async function generarHueco(e: EmpresaAuto, h: HuecoPendiente, ctx: Conte
       // REEL o CARRUSEL (carrusel = vídeo 9:16 diapositiva a diapositiva)
       const imagenUrl = await imagen916(pub.imagenPrompt);
       const redes = redesPara(e, ctx, "VIDEO");
-      const id = await crearPub(reservaId, e, h, pub, "VIDEO", redes, { imagenUrl, reelPrueba: dia.reelPrueba });
+      const id = await crearPub(reservaId, e, h, pub, "VIDEO", redes, { imagenUrl, reelPrueba: dia.reelPrueba, criterio: criterioActual });
       const reel = await generarReel({
         empresa: e.nombre,
         titulo: pub.titulo,
@@ -353,13 +376,14 @@ export async function generarHueco(e: EmpresaAuto, h: HuecoPendiente, ctx: Conte
       ctx.historial.unshift({ titulo: pub.titulo, texto: pub.texto });
       const noticiaIdea: Noticia = { titulo: idea, url: claveIdea(idea), fuente: `Campaña: ${camp.nombre}`, fecha: null, categoria: "campana", categoriaNombre: camp.nombre };
       ctx.noticiasUsadas.push({ url: noticiaIdea.url, titulo: idea });
+      const criterioActual = { objetivo: dia.objetivo, palabraClave: camp.palabraClave, campana: camp.nombre, segundos: dia.segundos, formatoPlan: dia.formato };
       const imagenUrl = await imagen916(pub.imagenPrompt);
       if (dia.formato === "IMAGEN") {
-        const id = await crearPub(reservaId, e, h, pub, "IMAGEN", redesPara(e, ctx, "IMAGEN"), { imagenUrl, noticia: noticiaIdea });
+        const id = await crearPub(reservaId, e, h, pub, "IMAGEN", redesPara(e, ctx, "IMAGEN"), { imagenUrl, noticia: noticiaIdea, criterio: criterioActual });
         await completar(reservaId, id, aprobacion, { imagenUrl, formato: "IMAGEN" });
         return { hueco: h.hueco, cuando, formato: `Imagen 9:16 · ${idea}`, ok: true, titulo: pub.titulo, publicacionId: id, pendienteAprobacion: aprobacion };
       }
-      const id = await crearPub(reservaId, e, h, pub, "VIDEO", redesPara(e, ctx, "VIDEO"), { imagenUrl, noticia: noticiaIdea });
+      const id = await crearPub(reservaId, e, h, pub, "VIDEO", redesPara(e, ctx, "VIDEO"), { imagenUrl, noticia: noticiaIdea, criterio: criterioActual });
       const reel = await generarReel({ empresa: e.nombre, titulo: pub.titulo, texto: pub.texto, imagenPrompt: pub.imagenPrompt, imagenUrl, segundos: dia.segundos, cta: ctaCorta(dia) });
       const videoUrl = await subirVideo(reel.mp4);
       await completar(reservaId, id, aprobacion, { videoUrl, imagenUrl, formato: "VIDEO" });

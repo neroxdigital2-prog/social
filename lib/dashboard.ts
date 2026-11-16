@@ -1,3 +1,4 @@
+import { serieSeguidores } from "@/lib/estadisticas/seguidores";
 // Agrega en el servidor todos los datos del Dashboard a partir de los bridges
 // que ya existen. Cada bloque falla de forma aislada: si un bridge no responde,
 // ese bloque sale vacío y el resto se pinta.
@@ -190,11 +191,9 @@ export async function cargarDashboard(
     bridge<PublicacionRaw[]>(process.env.IONOS_BRIDGE_URL_PUBLICACIONES_LIST, { userId, empresaId: empresa.id }),
     bridge<LeadRaw[]>(process.env.IONOS_BRIDGE_URL_LEADS_LIST, { userId, empresaId: empresa.id }),
     bridge<RedConectadaRaw[]>(process.env.IONOS_BRIDGE_URL_REDES_LIST, { userId, empresaId: empresa.id }),
-    bridge<{ snapshots?: SnapshotRaw[] }>(process.env.IONOS_BRIDGE_URL_SNAPSHOT_LISTAR, {
-      empresaId: empresa.id,
-      desde: isoDia(desde),
-      hasta: isoDia(hoy),
-    }),
+    serieSeguidores(empresa.id, isoDia(desde), isoDia(hoy))
+      .then((r) => ({ snapshots: r.serie.filter((p) => p.red === "INSTAGRAM") as SnapshotRaw[] }))
+      .catch(() => ({ snapshots: [] as SnapshotRaw[] })),
   ]);
 
   const publicaciones = Array.isArray(pubsRaw) ? pubsRaw : [];

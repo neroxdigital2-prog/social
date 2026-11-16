@@ -1,7 +1,7 @@
 "use client";
 
 import { usePathname, useSearchParams } from "next/navigation";
-import { LayoutDashboard, Sparkles, Search, TrendingUp, CalendarDays, FolderOpen, Users, MessageCircle, Clock, Settings, Compass } from "lucide-react";
+import { LayoutDashboard, Sparkles, Search, TrendingUp, CalendarDays, FolderOpen, Users, MessageCircle, Clock, Settings, Compass, BarChart3 } from "lucide-react";
 
 const GRUPOS = [
   { titulo: "Principal", items: [
@@ -15,6 +15,7 @@ const GRUPOS = [
   { titulo: "Analizar", items: [
     { href: "/nerox-analiza", label: "Nerox Analiza", Icono: Search },
     { href: "/crecimiento", label: "Crecimiento", Icono: TrendingUp },
+    { href: "/resultados", label: "Resultados", Icono: BarChart3 },
   ] },
   { titulo: "Clientes", items: [
     { href: "/crm", label: "CRM", Icono: Users },

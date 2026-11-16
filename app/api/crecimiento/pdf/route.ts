@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { serieSeguidores } from "@/lib/estadisticas/seguidores";
 import PDFDocument from "pdfkit";
 
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
 
 const BRIDGE_SECRET = process.env.BRIDGE_SECRET!;
-const BRIDGE_SNAPSHOT_LISTAR = process.env.IONOS_BRIDGE_URL_SNAPSHOT_LISTAR!;
 const BRIDGE_EMPRESAS_LIST = process.env.IONOS_BRIDGE_URL_EMPRESAS_LIST!;
 
 interface Snapshot {
@@ -86,14 +86,12 @@ export async function GET(req: NextRequest) {
     }
 
     // 2) Datos de crecimiento
-    const resSnap = await fetch(BRIDGE_SNAPSHOT_LISTAR, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-Bridge-Secret": BRIDGE_SECRET },
-      body: JSON.stringify({ empresaId, desde, hasta }),
-      cache: "no-store",
-    });
-    const dataSnap = await resSnap.json().catch(() => ({ snapshots: [] }));
-    const snapshots: Snapshot[] = dataSnap.snapshots || [];
+    const hoyIso = new Date().toISOString().slice(0, 10);
+    const real = await serieSeguidores(empresaId, desde || new Date(Date.now() - 30 * 86400_000).toISOString().slice(0, 10), hasta || hoyIso);
+    const dataSnap = { desde: desde || "inicio", hasta: hasta || hoyIso };
+    const snapshots: Snapshot[] = real.serie
+      .filter((p) => p.red === "INSTAGRAM")
+      .map((p) => ({ fecha: p.fecha, seguidores: p.seguidores, publicaciones: p.publicaciones }));
 
     if (snapshots.length === 0) {
       return NextResponse.json({ error: "No hay datos de seguidores en ese rango de fechas todavía." }, { status: 404 });

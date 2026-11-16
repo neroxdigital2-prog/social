@@ -1,36 +1,34 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
+import { puedeEditarEmpresa } from "@/lib/autopiloto/acceso";
+import { serieSeguidores } from "@/lib/estadisticas/seguidores";
 
 export const dynamic = "force-dynamic";
 
-const BRIDGE_SECRET = process.env.BRIDGE_SECRET!;
-const BRIDGE_LISTAR = process.env.IONOS_BRIDGE_URL_SNAPSHOT_LISTAR!;
-
+/** Serie diaria real de seguidores (Instagram + Facebook) de una empresa. */
 export async function GET(req: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) return NextResponse.json({ error: "No autorizado" }, { status: 401 });
 
-  if (!BRIDGE_LISTAR) {
-    return NextResponse.json({ error: "Falta la variable IONOS_BRIDGE_URL_SNAPSHOT_LISTAR en Vercel." }, { status: 500 });
-  }
-
   const empresaId = req.nextUrl.searchParams.get("empresa");
   if (!empresaId) return NextResponse.json({ error: "Falta el parámetro empresa." }, { status: 400 });
+  const acceso = await puedeEditarEmpresa(session.user.id, empresaId);
+  if (!acceso.ok) return NextResponse.json({ error: "No tienes acceso a esta empresa." }, { status: 403 });
 
-  const desde = req.nextUrl.searchParams.get("desde") || undefined;
-  const hasta = req.nextUrl.searchParams.get("hasta") || undefined;
+  const hoy = new Date().toISOString().slice(0, 10);
+  const desde = req.nextUrl.searchParams.get("desde") || new Date(Date.now() - 30 * 86400_000).toISOString().slice(0, 10);
+  const hasta = req.nextUrl.searchParams.get("hasta") || hoy;
+  const { instalado, serie, ultimaLectura } = await serieSeguidores(empresaId, desde, hasta);
 
-  try {
-    const res = await fetch(BRIDGE_LISTAR, {
-      method: "POST",
-      headers: { "Content-Type": "application/json", "X-Bridge-Secret": BRIDGE_SECRET },
-      body: JSON.stringify({ empresaId, desde, hasta }),
-      cache: "no-store",
-    });
-    const data = await res.json().catch(() => ({ error: "El bridge no devolvió JSON válido." }));
-    if (!res.ok) return NextResponse.json(data, { status: res.status });
-    return NextResponse.json(data);
-  } catch (error: any) {
-    return NextResponse.json({ error: "Fallo al conectar con el bridge: " + (error?.message || "error desconocido") }, { status: 502 });
-  }
+  const ig = serie.filter((p) => p.red === "INSTAGRAM");
+  const crecimientoAbsoluto = ig.length >= 2 ? ig[ig.length - 1].seguidores - ig[0].seguidores : null;
+  return NextResponse.json({
+    instalado,
+    desde,
+    hasta,
+    ultimaLectura,
+    serie,
+    snapshots: ig.map((p) => ({ fecha: p.fecha, seguidores: p.seguidores, publicaciones: p.publicaciones })),
+    crecimientoAbsoluto,
+  });
 }
