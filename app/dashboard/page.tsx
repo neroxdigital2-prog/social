@@ -10,6 +10,8 @@ import { ProximasPublicaciones } from "@/components/dashboard/ProximasPublicacio
 import { PanelAlertas } from "@/components/dashboard/PanelAlertas";
 import { EstadoRedes } from "@/components/dashboard/EstadoRedes";
 import { PanelAgentesDashboard } from "@/components/centro/CentroControl";
+import { Plegable } from "@/components/ui/Plegable";
+import { Desplegable } from "@/components/ui/Desplegable";
 
 export const dynamic = "force-dynamic";
 
@@ -43,7 +45,7 @@ export default async function DashboardPage({ searchParams }: { searchParams: { 
 
   return (
     <main className="dsh">
-      <PanelAgentesDashboard />
+      <Plegable id="dsh-centro" titulo="Centro de control"><PanelAgentesDashboard /></Plegable>
 
       <header className="dsh-cabecera">
         <div>
@@ -56,18 +58,20 @@ export default async function DashboardPage({ searchParams }: { searchParams: { 
         </nav>
       </header>
 
-      <section className="dsh-kpis" aria-label="Indicadores principales">
-        {datos.kpis.map((k) => <TarjetaKpi key={k.etiqueta} kpi={k} />)}
-      </section>
+      <Desplegable id="dsh-kpis" titulo="Indicadores" resumen={`${datos.kpis.length} indicadores`}>
+        <section className="dsh-kpis" aria-label="Indicadores principales">
+          {datos.kpis.map((k) => <TarjetaKpi key={k.etiqueta} kpi={k} />)}
+        </section>
+      </Desplegable>
 
       <div className="dsh-rejilla">
         <div className="dsh-columna-principal">
-          <GraficaActividad datos={datos.actividad} />
-          <ProximasPublicaciones items={datos.proximas} empresaId={datos.empresaId} />
+          <Plegable id="dsh-actividad" titulo="Actividad"><GraficaActividad datos={datos.actividad} /></Plegable>
+          <Plegable id="dsh-proximas" titulo="Próximas publicaciones"><ProximasPublicaciones items={datos.proximas} empresaId={datos.empresaId} /></Plegable>
         </div>
         <aside className="dsh-columna-lateral" aria-label="Estado">
-          <PanelAlertas alertas={datos.alertas} ocultas={datos.alertasOcultas} empresaId={datos.empresaId} />
-          <EstadoRedes redes={datos.redes} empresaId={datos.empresaId} />
+          <Plegable id="dsh-alertas" titulo="Alertas"><PanelAlertas alertas={datos.alertas} ocultas={datos.alertasOcultas} empresaId={datos.empresaId} /></Plegable>
+          <Plegable id="dsh-redes" titulo="Redes"><EstadoRedes redes={datos.redes} empresaId={datos.empresaId} /></Plegable>
         </aside>
       </div>
     </main>

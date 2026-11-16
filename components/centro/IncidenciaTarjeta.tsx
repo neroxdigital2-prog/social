@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { BellOff, CheckCircle2, ChevronDown, RotateCcw, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { BellOff, CheckCircle2, ChevronDown, RotateCcw, Save, Trash2, UserPlus } from "lucide-react";
 import { NOMBRE_AGENTE, TEXTO_VIA, duracion, fechaHoraBD, reparacionDe } from "@/lib/agentes";
 import type { EventoIncidencia, IncidenciaVista } from "@/components/centro/tipos";
 
@@ -14,6 +14,9 @@ const ICONO_EVENTO: Record<EventoIncidencia["tipo"], string> = {
   AUTOCORRECCION: "🛠️",
   SILENCIADA: "🔕",
   RESUELTA: "✅",
+  CONFIG: "⚙️",
+  NOTA: "📝",
+  ASIGNADA: "🧰",
 };
 
 const CANAL: Record<string, string> = {
@@ -55,6 +58,13 @@ export function textoEvento(e: EventoIncidencia): { titulo: string; nota?: strin
       return { titulo: `Silenciada por ${e.actor || "operador"}${via ? ` (${via})` : ""}`, nota: e.detalle || undefined };
     case "RESUELTA":
       return { titulo: `Resuelta por ${e.actor || "—"}${via ? ` (${via})` : ""}`, nota: e.detalle || undefined, estado: "ok" };
+    case "NOTA":
+      return { titulo: `${e.actor || "Operador"}`, nota: e.detalle || undefined };
+    case "ASIGNADA":
+      return { titulo: `${e.destino ? `Asignada a ${e.destino}` : "Asignación quitada"} por ${e.actor || "operador"}` };
+    case "CONFIG":
+    default:
+      return { titulo: e.detalle || "Cambio de configuración" };
   }
 }
 
@@ -80,6 +90,138 @@ export function LineaTiempo({ eventos }: { eventos: EventoIncidencia[] }) {
         );
       })}
     </ol>
+  );
+}
+
+/** Saca los pasos numerados («1. …», «2) …», «- …») del diagnóstico. */
+function pasosDe(detalle: string | null): string[] {
+  if (!detalle) return [];
+  const lineas = detalle.split(/\r?\n/).map((l) => l.trim());
+  const numeradas = lineas.filter((l) => /^\d{1,2}[.)]\s+/.test(l)).map((l) => l.replace(/^\d{1,2}[.)]\s+/, ""));
+  if (numeradas.length) return numeradas.slice(0, 15);
+  return lineas.filter((l) => /^[-•·]\s+/.test(l)).map((l) => l.replace(/^[-•·]\s+/, "")).slice(0, 15);
+}
+
+interface Destino {
+  chatId: string;
+  nombre: string | null;
+  usuario: string | null;
+}
+
+let destinosCache: Promise<Destino[]> | null = null;
+function cargarDestinos(): Promise<Destino[]> {
+  destinosCache ??= fetch("/api/telegram/vincular", { cache: "no-store" })
+    .then((r) => r.json())
+    .then((d) => (Array.isArray(d?.destinos) ? d.destinos : []))
+    .catch(() => []);
+  return destinosCache;
+}
+
+async function enviarAccion(cuerpo: Record<string, unknown>): Promise<{ ok: boolean; mensaje: string }> {
+  const res = await fetch("/api/centro/incidencias", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(cuerpo),
+  }).catch(() => null);
+  const d = await res?.json().catch(() => null);
+  return { ok: !!res?.ok, mensaje: d?.mensaje || d?.error || (res?.ok ? "Hecho." : "No se pudo guardar.") };
+}
+
+function GuiaReparacion({ inc, onCambio }: { inc: IncidenciaVista; onCambio?: () => void }) {
+  const pasos = useMemo(() => pasosDe(inc.detalle), [inc.detalle]);
+  const [hechos, setHechos] = useState<number[]>(Array.isArray(inc.pasosHechos) ? inc.pasosHechos : []);
+  const [nota, setNota] = useState(inc.nota || "");
+  const [asignada, setAsignada] = useState(inc.asignadaA || "");
+  const [destinos, setDestinos] = useState<Destino[]>([]);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [ocupado, setOcupado] = useState(false);
+  const resuelta = inc.estado === "RESUELTA";
+
+  useEffect(() => {
+    if (!resuelta) cargarDestinos().then(setDestinos);
+  }, [resuelta]);
+
+  async function marcar(i: number, marcado: boolean) {
+    const nuevos = marcado ? [...new Set([...hechos, i])] : hechos.filter((x) => x !== i);
+    setHechos(nuevos);
+    const r = await enviarAccion({ clave: inc.clave, accion: "pasos", hechos: nuevos, paso: `${i + 1}. ${pasos[i]}`, marcado });
+    if (!r.ok) setMsg(r.mensaje);
+  }
+
+  async function guardarNota(resolver = false) {
+    setOcupado(true);
+    const r = await enviarAccion({ clave: inc.clave, accion: "nota", nota });
+    let texto = r.mensaje;
+    if (r.ok && resolver) {
+      const r2 = await enviarAccion({ clave: inc.clave, accion: "resolver", nota });
+      texto = r2.mensaje;
+    }
+    setMsg(texto);
+    setOcupado(false);
+    onCambio?.();
+  }
+
+  async function asignar(valor: string) {
+    setAsignada(valor);
+    const d = destinos.find((x) => x.chatId === valor);
+    const nombre = d ? d.nombre || (d.usuario ? `@${d.usuario}` : d.chatId) : valor || null;
+    const r = await enviarAccion({ clave: inc.clave, accion: "asignar", asignadaA: nombre, chat: d?.chatId || null, titulo: inc.titulo });
+    setMsg(r.mensaje);
+    onCambio?.();
+  }
+
+  const valorAsignada = destinos.find((d) => (d.nombre || (d.usuario ? `@${d.usuario}` : d.chatId)) === asignada)?.chatId || "";
+
+  return (
+    <section className="cc-guia" aria-label="Guía de reparación">
+      <h4 className="cc-subtitulo">🧭 Guía de reparación {pasos.length > 0 && <span className="dsh-muted">· {hechos.length}/{pasos.length} pasos</span>}</h4>
+      {pasos.length > 0 ? (
+        <ol className="cc-pasos">
+          {pasos.map((p, i) => (
+            <li key={i}>
+              <label>
+                <input type="checkbox" checked={hechos.includes(i)} disabled={resuelta} onChange={(e) => marcar(i, e.target.checked)} />
+                <span className={hechos.includes(i) ? "cc-paso-hecho" : undefined}>{p}</span>
+              </label>
+            </li>
+          ))}
+        </ol>
+      ) : (
+        <p className="dsh-muted">Esta avería no trae pasos numerados: describe en la nota qué hiciste.</p>
+      )}
+
+      {!resuelta && (
+        <label className="cc-select cc-asignar">
+          <span><UserPlus size={13} aria-hidden="true" /> Asignada a</span>
+          <select value={valorAsignada || (asignada ? "__otro" : "")} onChange={(e) => e.target.value !== "__otro" && asignar(e.target.value)}>
+            <option value="">Sin asignar</option>
+            {destinos.map((d) => (
+              <option key={d.chatId} value={d.chatId}>
+                {d.nombre || (d.usuario ? `@${d.usuario}` : d.chatId)} (Telegram)
+              </option>
+            ))}
+            {asignada && !valorAsignada && <option value="__otro">{asignada}</option>}
+          </select>
+        </label>
+      )}
+
+      <label className="cc-nota">
+        <span>📝 Nota de reparación: quién la reparó y qué hizo</span>
+        <textarea rows={3} value={nota} onChange={(e) => setNota(e.target.value)} placeholder="Ej.: Renové el token de Instagram en Redes sociales y reintenté el envío." disabled={ocupado} />
+      </label>
+      {inc.nota && inc.notaPor && <small className="dsh-muted">Última nota de {inc.notaPor}</small>}
+      <div className="cc-acciones">
+        <button type="button" className="dsh-boton dsh-boton-mini" onClick={() => guardarNota(false)} disabled={ocupado || nota === (inc.nota || "")}>
+          <Save size={14} aria-hidden="true" /> Guardar nota
+        </button>
+        {!resuelta && (
+          <button type="button" className="dsh-boton dsh-boton-mini dsh-boton-primario" onClick={() => guardarNota(true)} disabled={ocupado || !nota.trim()}>
+            <CheckCircle2 size={14} aria-hidden="true" /> Guardar y marcar reparada
+          </button>
+        )}
+      </div>
+      {msg && <p role="status" className="dsh-muted">{msg}</p>}
+    </section>
   );
 }
 
@@ -144,6 +286,12 @@ export function IncidenciaTarjeta({ inc, onCambio, abiertaInicial = false }: { i
               📨 {entregados} aviso(s) entregado(s){fallidos ? ` · ${fallidos} fallido(s)` : ""}
             </span>
             {ultimoAviso && <span className="cc-chip">Último: {CANAL[ultimoAviso.canal || ""] || ultimoAviso.canal} {fechaHoraBD(ultimoAviso.momento)}</span>}
+            {(inc.repeticiones7d || 0) >= 3 && (
+              <span className="cc-chip cc-chip-error" title="Ha vuelto a aparecer 3 o más veces en 7 días: arregla la causa de fondo">
+                ♻️ Recurrente · {inc.repeticiones7d}× en 7 días
+              </span>
+            )}
+            {inc.asignadaA && <span className="cc-chip">🧰 {inc.asignadaA}</span>}
           </span>
         </span>
         <ChevronDown size={16} aria-hidden="true" className="cc-chevron" />
@@ -195,6 +343,11 @@ export function IncidenciaTarjeta({ inc, onCambio, abiertaInicial = false }: { i
               <pre>{inc.detalle}</pre>
             </details>
           )}
+
+          {(inc.repeticiones7d || 0) >= 3 && inc.estado !== "RESUELTA" && (
+            <p className="dsh-alerta dsh-alerta-error">♻️ Esta avería ha aparecido {inc.repeticiones7d} veces en 7 días. Reintentar no basta: arregla la causa de fondo en <a href={reparacion.ruta}>{reparacion.lugar}</a>.</p>
+          )}
+          <GuiaReparacion inc={inc} onCambio={onCambio} />
 
           <h4 className="cc-subtitulo">Historial</h4>
           <LineaTiempo eventos={inc.eventos} />

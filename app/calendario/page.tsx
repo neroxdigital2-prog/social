@@ -1,6 +1,8 @@
 import { auth } from "@/auth";
 import { redirect } from "next/navigation";
 import { CalendarioSemana } from "@/components/calendario/CalendarioSemana";
+import { RevisionFechas } from "@/components/calendario/RevisionFechas";
+import { Desplegable } from "@/components/ui/Desplegable";
 
 interface Publicacion {
   id: string;
@@ -74,7 +76,8 @@ export default async function CalendarioPage({
         <h1>Calendario de publicaciones</h1>
         <p className="text-muted">Programa cuándo se publica cada contenido generado</p>
       </header>
-      <section className="form-card">
+      {empresaId && <RevisionFechas publicaciones={publicaciones} />}
+      <Desplegable id="cal-semana" titulo="🗓️ Calendario semanal" subtitulo="Arrastra o cambia la hora de cada publicación.">
         {!empresaId ? (
           <p>
             Aún no tienes empresas registradas. <a href="/empresas/nueva">Crea tu primera empresa</a>
@@ -88,7 +91,7 @@ export default async function CalendarioPage({
             redesConectadas={redesConectadas.map((r) => r.red)}
           />
         )}
-      </section>
+      </Desplegable>
     </main>
   );
 }

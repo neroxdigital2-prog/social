@@ -81,7 +81,7 @@ export interface EventoIncidencia {
   id: string | number;
   clave: string | null;
   agente?: string | null;
-  tipo: "ABIERTA" | "REABIERTA" | "CAMBIO" | "AVISO" | "REINTENTO" | "AUTOCORRECCION" | "SILENCIADA" | "RESUELTA";
+  tipo: "ABIERTA" | "REABIERTA" | "CAMBIO" | "AVISO" | "REINTENTO" | "AUTOCORRECCION" | "SILENCIADA" | "RESUELTA" | "CONFIG" | "NOTA" | "ASIGNADA";
   canal: string | null;
   destino: string | null;
   entregado: number | string | null;
@@ -105,5 +105,10 @@ export interface IncidenciaVista {
   resueltaVia: string | null;
   motivoResolucion: string | null;
   duracionSeg: number;
+  pasosHechos?: number[] | null;
+  nota?: string | null;
+  notaPor?: string | null;
+  asignadaA?: string | null;
+  repeticiones7d?: number;
   eventos: EventoIncidencia[];
 }

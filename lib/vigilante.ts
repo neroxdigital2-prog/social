@@ -857,7 +857,7 @@ export async function ejecutarVigilante(base: string, opciones: { revisarTokens?
   const noche = esModoNoche();
   const clavesActuales = new Set(problemas.map((p) => p.clave));
   for (const p of problemas) {
-    const r = await bridgeVigilante<{ avisar?: boolean; tipo?: string | null }>("incidencia_abrir", {
+    const r = await bridgeVigilante<{ avisar?: boolean; tipo?: string | null; repeticiones7d?: number }>("incidencia_abrir", {
       clave: p.clave,
       agente: p.agente,
       firma: p.firma,
@@ -868,9 +868,16 @@ export async function ejecutarVigilante(base: string, opciones: { revisarTokens?
     });
     const avisar = !!r?.avisar;
     if (avisar) {
-      const motivo = r?.tipo === "REABIERTA" ? "Aviso: la avería ha vuelto" : r?.tipo === "CAMBIO" ? "Aviso: la avería ha cambiado" : "Aviso de nueva avería";
+      const veces = Number(r?.repeticiones7d) || 0;
+      const recurrente = r?.tipo === "REABIERTA" && veces >= 3;
+      const motivo = recurrente
+        ? `Avería recurrente: ${veces} veces en 7 días`
+        : r?.tipo === "REABIERTA" ? "Aviso: la avería ha vuelto" : r?.tipo === "CAMBIO" ? "Aviso: la avería ha cambiado" : "Aviso de nueva avería";
       await registrarEventos([{ clave: p.clave, agente: p.agente, tipo: "AVISO", canal: "DASHBOARD", destino: "Centro de control", entregado: true, actor: "Vigilante", detalle: motivo }]);
-      await avisarYRegistrar(textoProblema(p), { clave: p.clave, agente: p.agente, detalle: motivo, botones: p.botones, aplazar: noche && p.nivel !== "CRITICO" });
+      const cabecera = recurrente
+        ? `♻️ <b>Avería recurrente (${veces} veces en 7 días)</b>\nReintentar ya no basta: hay que arreglar la causa de fondo.\n\n`
+        : "";
+      await avisarYRegistrar(cabecera + textoProblema(p), { clave: p.clave, agente: p.agente, detalle: motivo, botones: p.botones, aplazar: noche && p.nivel !== "CRITICO" });
     }
     informe.problemas.push({ clave: p.clave, titulo: p.titulo, avisado: avisar });
   }

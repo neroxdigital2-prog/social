@@ -158,8 +158,8 @@ export function PilotoAutomatico({ empresaId }: { empresaId: string }) {
       </p>
 
       {/* Horarios */}
-      <fieldset className="pa-bloque">
-        <legend>Horario (hora de Madrid)</legend>
+      <details className="pa-bloque pa-plegable" open>
+        <summary>Horario (hora de Madrid)</summary>
         <div className="pa-horas">
           <label>
             <span>📅 Publicación del calendario</span>
@@ -225,11 +225,11 @@ export function PilotoAutomatico({ empresaId }: { empresaId: string }) {
             </label>
           ))}
         </div>
-      </fieldset>
+      </details>
 
       {/* Calendario semanal */}
-      <fieldset className="pa-bloque">
-        <legend>Calendario semanal (publicación de las {config.horaPrincipal})</legend>
+      <details className="pa-bloque pa-plegable" open>
+        <summary>Calendario semanal (publicación de las {config.horaPrincipal})</summary>
         <div className="pa-semana">
           {["1", "2", "3", "4", "5", "6", "7"].map((d) => {
             const dia = config.plantilla[d];
@@ -288,11 +288,11 @@ export function PilotoAutomatico({ empresaId }: { empresaId: string }) {
             );
           })}
         </div>
-      </fieldset>
+      </details>
 
       {/* Agente de noticias */}
-      <fieldset className="pa-bloque">
-        <legend>📰 Agente de noticias (Google News, últimos 7 días)</legend>
+      <details className="pa-bloque pa-plegable" open>
+        <summary>📰 Agente de noticias (Google News, últimos 7 días)</summary>
         <div className="pa-checks">
           {config.categorias.map((c, i) => (
             <label key={c.id} className="pa-chip">
@@ -326,11 +326,11 @@ export function PilotoAutomatico({ empresaId }: { empresaId: string }) {
             ))}
           </ul>
         )}
-      </fieldset>
+      </details>
 
       {/* Promoción de apps en venta */}
-      <fieldset className="pa-bloque">
-        <legend>🛍️ Promoción de apps en venta (catálogo en la pestaña «Apps en venta»)</legend>
+      <details className="pa-bloque pa-plegable" open>
+        <summary>🛍️ Promoción de apps en venta (catálogo en la pestaña «Apps en venta»)</summary>
         <label className="pa-chip">
           <input type="checkbox" checked={config.promoApps.activa} onChange={(e) => setConfig({ ...config, promoApps: { ...config.promoApps, activa: e.target.checked } })} />
           Promocionar una app por turnos (además del miércoles y el viernes del calendario)
@@ -371,11 +371,11 @@ export function PilotoAutomatico({ empresaId }: { empresaId: string }) {
             </label>
           ))}
         </div>
-      </fieldset>
+      </details>
 
       {/* Campaña / cola de ideas */}
-      <fieldset className="pa-bloque">
-        <legend>📣 Campaña y cola de ideas (una publicación distinta por idea)</legend>
+      <details className="pa-bloque pa-plegable" open>
+        <summary>📣 Campaña y cola de ideas (una publicación distinta por idea)</summary>
         <label className="pa-chip">
           <input type="checkbox" checked={config.campana.activa} onChange={(e) => setConfig({ ...config, campana: { ...config.campana, activa: e.target.checked } })} />
           Activar la cola de ideas
@@ -460,7 +460,7 @@ export function PilotoAutomatico({ empresaId }: { empresaId: string }) {
               ))}
           </ul>
         )}
-      </fieldset>
+      </details>
 
       <div className="pa-acciones">
         <button type="button" className="btn-primary" onClick={() => guardar()} disabled={guardando}>
@@ -473,10 +473,10 @@ export function PilotoAutomatico({ empresaId }: { empresaId: string }) {
       {mensaje && <p role="status" className={mensaje.error ? "field-error" : "crm-aviso"}>{mensaje.t}</p>}
 
       {/* Próximas */}
-      <section className="pa-bloque">
-        <h4>
+      <details className="pa-bloque pa-plegable" open>
+        <summary>
           <CalendarClock size={16} aria-hidden="true" /> Próximas publicaciones automáticas
-        </h4>
+        </summary>
         {datos.proximas.length === 0 && datos.pendientes.length === 0 && <p className="dsh-muted">Aún no hay nada preparado.</p>}
         <ul className="pa-proximas">
           {datos.proximas.map((p) => (
@@ -526,7 +526,7 @@ export function PilotoAutomatico({ empresaId }: { empresaId: string }) {
               </li>
             ))}
         </ul>
-      </section>
+      </details>
     </div>
   );
 }
