@@ -3,6 +3,8 @@ import { auth } from "@/auth";
 import { generarPublicaciones } from "@/lib/generador";
 import { verificarRateLimit } from "@/lib/rateLimiter";
 import { z } from "zod";
+import { bridgeAuto } from "@/lib/autopiloto/motor";
+import { buscarRepetida, tituloYaUsado } from "@/lib/autopiloto/antiRepeticion";
 
 export const maxDuration = 60;
 
@@ -106,8 +108,12 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     }
   }
 
+  // Anti-repetición: títulos y textos ya creados para esta empresa
+  const hist = await bridgeAuto<{ publicaciones?: { titulo: string; texto: string }[] }>("historial", { empresaId: empresa.id, dias: 180 });
+  const previas = (hist?.publicaciones || []).map((p) => ({ titulo: p.titulo, texto: p.texto }));
+
   try {
-    const generadas = await generarPublicaciones(
+    const brutas = await generarPublicaciones(
       {
         nombre: empresa.nombre,
         sector: empresa.sector,
@@ -122,8 +128,19 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       cantidad,
       claves,
       tema,
-      tendenciaActual
+      tendenciaActual,
+      previas.map((p) => p.titulo)
     );
+
+    const vistos: string[] = [];
+    const generadas = brutas.filter((p) => {
+      const repetida = !!buscarRepetida(p.titulo, p.texto, previas) || tituloYaUsado(p.titulo, vistos);
+      vistos.push(p.titulo);
+      return !repetida;
+    });
+    if (!generadas.length) {
+      return NextResponse.json({ error: "Todas las ideas generadas se parecían a publicaciones anteriores. Prueba con un tema distinto." }, { status: 409 });
+    }
 
     const crear = await bridgeFetch(BRIDGE_CREAR, { empresaId: empresa.id, publicaciones: generadas });
 
@@ -132,7 +149,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
       return NextResponse.json({ error: "Fallo al guardar publicaciones" }, { status: 502 });
     }
 
-    return NextResponse.json(crear.data, { status: 201 });
+    return NextResponse.json({ ...crear.data, descartadasPorRepetidas: brutas.length - generadas.length }, { status: 201 });
   } catch (error) {
     console.error("Error generando publicaciones:", error);
     return NextResponse.json({ error: "Fallo al generar contenido con IA" }, { status: 502 });

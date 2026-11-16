@@ -1705,3 +1705,47 @@ body { font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto
   .side-link { white-space: nowrap; }
   .side-pie { border: 0; padding: 0; margin-left: auto; }
 }
+
+/* ═══════════ Generador: piloto automático ═══════════ */
+.pa { display: grid; gap: 1rem; }
+.pa-cabecera { display: flex; justify-content: space-between; align-items: flex-start; gap: 1rem; }
+.pa-cabecera h3 { margin: 0 0 0.2rem; }
+.pa-cabecera p { margin: 0; font-size: 0.86rem; }
+.pa-estado { margin: 0; font-size: 0.86rem; font-weight: 600; }
+.pa-bloque { display: grid; gap: 0.7rem; border: 1px solid hsl(240 6% 88%); border-radius: 12px; padding: 0.9rem 1rem; margin: 0; min-width: 0; }
+.pa-bloque legend, .pa-bloque h4 { font-weight: 700; font-size: 0.9rem; padding: 0 0.3rem; margin: 0; display: flex; align-items: center; gap: 0.35rem; }
+.pa-horas { display: grid; gap: 0.6rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 190px), 1fr)); }
+.pa-horas label, .pa-dia label { display: grid; gap: 0.2rem; font-size: 0.78rem; color: var(--color-text-muted); }
+.pa-horas input, .pa-dia input, .pa-dia textarea, .pa-dia select, .pa-chip select { font: inherit; font-size: 0.85rem; padding: 0.4rem 0.5rem; border: 1px solid hsl(240 6% 85%); border-radius: 8px; color: var(--color-text); background: #fff; min-width: 0; }
+.pa-checks { display: flex; flex-wrap: wrap; gap: 0.4rem 0.9rem; align-items: center; }
+.pa-mini { font-size: 0.78rem; font-weight: 700; color: var(--color-text-muted); }
+.pa-chip { display: inline-flex; align-items: center; gap: 0.35rem; font-size: 0.84rem; cursor: pointer; }
+.pa-chip input[type="checkbox"] { width: 16px; height: 16px; accent-color: var(--color-primary); }
+.pa-semana { display: grid; gap: 0.6rem; grid-template-columns: repeat(auto-fill, minmax(min(100%, 250px), 1fr)); }
+.pa-dia { display: grid; gap: 0.5rem; align-content: start; padding: 0.7rem; border: 1px solid hsl(240 6% 90%); border-radius: 10px; background: #fff; min-width: 0; }
+.pa-dia header { display: flex; justify-content: space-between; align-items: center; gap: 0.5rem; }
+.pa-dia-off { background: var(--color-surface); }
+.pa-dia textarea { resize: vertical; }
+.pa-fila { display: grid; grid-template-columns: repeat(auto-fit, minmax(80px, 1fr)); gap: 0.4rem; }
+.pa-noticias { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.4rem; max-height: 360px; overflow: auto; }
+.pa-noticias li { display: grid; gap: 0.1rem; padding: 0.45rem 0.6rem; border: 1px solid hsl(240 6% 90%); border-radius: 8px; font-size: 0.84rem; }
+.pa-noticias a { color: var(--color-text); font-weight: 600; overflow-wrap: anywhere; }
+.pa-noticias small { color: var(--color-text-muted); font-size: 0.74rem; }
+.pa-cat { font-size: 0.7rem; font-weight: 700; color: var(--color-primary); text-transform: uppercase; letter-spacing: 0.03em; }
+.pa-usada { opacity: 0.55; }
+.pa-acciones { display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.pa-acciones .btn-primary, .pa-bloque .crm-btn { display: inline-flex; align-items: center; gap: 0.4rem; justify-self: start; }
+.pa-proximas { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.5rem; }
+.pa-proximas li { display: grid; grid-template-columns: 48px 1fr auto; gap: 0.7rem; align-items: center; padding: 0.5rem; border: 1px solid hsl(240 6% 90%); border-radius: 10px; font-size: 0.84rem; }
+.pa-proximas img, .pa-proximas video, .pa-miniatura { width: 48px; aspect-ratio: 9 / 16; object-fit: cover; border-radius: 6px; background: var(--color-surface); display: block; }
+.pa-proximas li > div { display: grid; gap: 0.15rem; min-width: 0; }
+.pa-proximas li > div span { overflow-wrap: anywhere; }
+.pa-fuente { font-size: 0.76rem; color: var(--color-text-muted); overflow-wrap: anywhere; }
+.pa-estado-item { display: grid; gap: 0.3rem; justify-items: end; font-size: 0.78rem; white-space: nowrap; }
+.pa-error { border-color: hsl(0 70% 85%) !important; background: hsl(0 85% 98.5%); }
+.pa-pendiente { opacity: 0.7; border-style: dashed !important; }
+@media (max-width: 560px) { .pa-proximas li { grid-template-columns: 40px 1fr; } .pa-estado-item { grid-column: 2; justify-items: start; } }
+.pa-dia input, .pa-dia textarea, .pa-dia select, .pa-horas input { width: 100%; box-sizing: border-box; }
+.pa-dia header select { width: auto; max-width: 62%; }
+.pa-dia .pa-chip { display: flex; grid-template-columns: none; color: var(--color-text); }
+.pa-dia .pa-chip input { width: 16px; }

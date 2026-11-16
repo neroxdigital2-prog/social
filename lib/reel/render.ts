@@ -13,8 +13,8 @@ const DURACION_MAX = 60;
 const DURACION_MIN = 18; // ningún Reel por debajo de 18 s
 const MARGEN_TRAS_VOZ = 1.2; // la voz termina antes de que aparezca la llamada a la acción
 
-const FUENTE_TITULO = path.join(process.cwd(), "assets/fonts/Montserrat_800ExtraBold.ttf");
-const FUENTE_TEXTO = path.join(process.cwd(), "assets/fonts/Montserrat_600SemiBold.ttf");
+export const FUENTE_TITULO = path.join(process.cwd(), "assets/fonts/Montserrat_800ExtraBold.ttf");
+export const FUENTE_TEXTO = path.join(process.cwd(), "assets/fonts/Montserrat_600SemiBold.ttf");
 
 export interface EscenaRender {
   texto: string;
@@ -35,7 +35,7 @@ export interface ResultadoRender {
 }
 
 // Parte el texto en líneas de ~maxCar caracteres (drawtext no hace saltos de línea solo)
-function envolver(texto: string, maxCar: number, maxLineas: number): string {
+export function envolver(texto: string, maxCar: number, maxLineas: number): string {
   const lineas: string[] = [];
   let actual = "";
   for (const palabra of texto.split(/\s+/).filter(Boolean)) {
@@ -55,7 +55,7 @@ function envolver(texto: string, maxCar: number, maxLineas: number): string {
   return lineas.join("\n");
 }
 
-async function descargar(url: string, destino: string): Promise<void> {
+export async function descargar(url: string, destino: string): Promise<void> {
   if (!/^(https:\/\/|data:image\/)/.test(url)) throw new Error("URL de medio no permitida");
   const controlador = new AbortController();
   const temporizador = setTimeout(() => controlador.abort(), 45_000);
@@ -70,7 +70,7 @@ async function descargar(url: string, destino: string): Promise<void> {
   }
 }
 
-function ejecutarFfmpeg(args: string[], limiteMs = 240_000): Promise<void> {
+export function ejecutarFfmpeg(args: string[], limiteMs = 240_000): Promise<void> {
   return new Promise((resolve, reject) => {
     if (!ffmpegRuta) return reject(new Error("ffmpeg-static no disponible en este entorno"));
     const proceso = spawn(ffmpegRuta, args, { stdio: ["ignore", "ignore", "pipe"] });

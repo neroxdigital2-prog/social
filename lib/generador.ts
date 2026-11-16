@@ -1,6 +1,7 @@
 import { conRetry } from "@/lib/conRetry";
 import { TipoPublicacion } from "@prisma/client";
 import { marcarExitoIA, marcarFalloIA, ordenarPorDisponibilidad } from "@/lib/circuitoIA";
+import { REGLAS_CRECIMIENTO } from "@/lib/autopiloto/plantilla";
 
 export interface PerfilEmpresa {
   nombre: string;
@@ -57,7 +58,7 @@ function elegirTipos(cantidad: number): TipoPublicacion[] {
   return tipos;
 }
 
-function construirPrompts(perfil: PerfilEmpresa, cantidad: number, tema?: string, tendenciaActual?: string) {
+function construirPrompts(perfil: PerfilEmpresa, cantidad: number, tema?: string, tendenciaActual?: string, evitar: string[] = []) {
   const tipos = elegirTipos(cantidad);
 
   const systemPrompt = `Eres un director de marketing digital experto en redes sociales para pequeñas y medianas empresas locales, con dominio de SEO para Instagram/Meta. Escribes en español, con tono cercano y profesional, adaptado al sector del negocio. Nunca inventas datos falsos sobre la empresa; usas solo la información proporcionada.
@@ -66,7 +67,7 @@ REGLAS SEO OBLIGATORIAS para cada publicación:
 1. La keyword principal (sector o servicio del negocio) debe aparecer dentro de los primeros 125 caracteres del "texto" — Instagram solo indexa y muestra esa parte antes de "ver más".
 2. La primera línea del "texto" debe ser un gancho corto que incluya esa keyword de forma natural, no un emoji suelto.
 3. "altText" debe describir la imagen de forma literal (qué se ve) e incluir la keyword principal de forma natural — se usa para accesibilidad y para que Instagram indexe la imagen. Máximo 100 caracteres.
-4. "hashtags" deben ser 3-5 hashtags de nicho (long-tail, específicos del sector+ciudad, ej. #disenowebmadrid en vez de #disenoweb) más 1 hashtag de marca fijo: #${(perfil.nombre || "nerox").toLowerCase().replace(/[^a-z0-9]/g, "")}. Nunca hashtags genéricos masivos (#instagood, #viral, #love).
+4. "hashtags": MÁXIMO 5 EN TOTAL. 3-4 hashtags de nicho (long-tail, específicos del sector+ciudad, ej. #disenowebmadrid en vez de #disenoweb) más 1 hashtag de marca fijo: #${(perfil.nombre || "nerox").toLowerCase().replace(/[^a-z0-9]/g, "")}. Nunca hashtags genéricos masivos (#instagood, #viral, #love).
 5. Si la empresa tiene ciudad definida, menciona esa ciudad de forma natural dentro del "texto" (ej. "en ${perfil.ciudad}", "para negocios en ${perfil.ciudad}") para reforzar el SEO local.
 
 REGLAS GEO (Generative Engine Optimization) OBLIGATORIAS — para que este contenido también funcione bien cuando alguien le pregunta a ChatGPT/Gemini/Perplexity sobre este sector o negocio, no solo cuando lo busca en Google/Instagram:
@@ -83,7 +84,9 @@ ANTES DE ESCRIBIR CADA PUBLICACIÓN, responde internamente estas 6 preguntas y q
 5. ¿Qué beneficio concreto obtiene?
 6. ¿Qué queremos que haga después de leer/ver esto? (esto define el CTA)
 
-Cada tipo de publicación tiene ademas una FÓRMULA MAESTRA de estructura obligatoria que debes seguir al escribir el "texto" (ver la lista de tipos más abajo).`;
+Cada tipo de publicación tiene ademas una FÓRMULA MAESTRA de estructura obligatoria que debes seguir al escribir el "texto" (ver la lista de tipos más abajo).
+
+${REGLAS_CRECIMIENTO}`;
 
   const userPrompt = `Genera ${cantidad} publicaciones para redes sociales de esta empresa:
 
@@ -94,7 +97,7 @@ Servicios: ${perfil.servicios.join(", ") || "no especificados"}
 Web: ${perfil.web || "no disponible"}
 WhatsApp: ${perfil.whatsapp || "no disponible"}
 ${perfil.datosVerificables ? `Dato verificable (usar SOLO esto para la regla de especificidad, nunca inventar otro): ${perfil.datosVerificables}\n` : ""}${perfil.tecnologiasMarcas ? `Tecnologías/marcas/certificaciones propias (usar el nombre exacto para el anclaje de entidad): ${perfil.tecnologiasMarcas}\n` : ""}${perfil.diferenciador ? `Diferenciador frente a la competencia (usar para reforzar el anclaje de entidad, sin exagerar): ${perfil.diferenciador}\n` : ""}
-${tema ? `\nTema o instrucción específica para estas publicaciones (síguela con prioridad, adaptando cada tipo de publicación a este tema): ${tema}\n` : ""}
+${evitar.length ? `\nNO REPITAS ni parafrasees estos títulos/temas ya publicados; cada publicación debe tener un ángulo, ejemplo y gancho nuevos:\n${evitar.slice(0, 40).map((t) => `- ${t}`).join("\n")}\n` : ""}${tema ? `\nTema o instrucción específica para estas publicaciones (síguela con prioridad, adaptando cada tipo de publicación a este tema): ${tema}\n` : ""}
 ${tendenciaActual ? `\nCONTEXTO DE TENDENCIAS ACTUALES (investigado hoy por el Radar de Tendencias de Nerox, tenlo en cuenta para ajustar el enfoque si es relevante, sin forzarlo si no aplica a este negocio): ${tendenciaActual}\n` : ""}
 Tipos de publicación requeridos en este orden exacto, con su pilar de embudo (ATRAER→EDUCAR→DEMOSTRAR→CONFIANZA→CONVERTIR), su enfoque SEO y su FÓRMULA MAESTRA de estructura obligatoria:
 ${tipos.map((t) => `- ${t} [pilar: ${PILAR_POR_TIPO[t]?.pilar ?? "ATRAER"}] → SEO: ${PILAR_POR_TIPO[t]?.enfoqueSeo ?? "keyword del sector en el gancho inicial"} → ESTRUCTURA: ${PILAR_POR_TIPO[t]?.formula ?? "GANCHO → PROBLEMA → SOLUCIÓN → BENEFICIO → CTA"}`).join("\n")}
@@ -103,7 +106,7 @@ Para cada publicación entrega, aplicando siempre las REGLAS SEO y GEO del syste
 - titulo: máximo 8 palabras
 - texto: entre 40 y 90 palabras, listo para publicar, keyword en los primeros 125 caracteres
 - altText: descripción literal de la imagen con la keyword, máximo 100 caracteres
-- hashtags: 3-5 hashtags de nicho long-tail + 1 hashtag de marca, sin espacios
+- hashtags: máximo 5 en total (3-4 de nicho long-tail + 1 de marca), sin espacios
 - imagenPrompt: descripción en inglés para generar una imagen con IA que acompañe la publicación
 
 Responde ÚNICAMENTE con un JSON válido con esta forma exacta:
@@ -237,9 +240,10 @@ export async function generarPublicaciones(
   cantidad: number,
   claves: ClavesApi = {},
   tema?: string,
-  tendenciaActual?: string
+  tendenciaActual?: string,
+  evitar: string[] = []
 ): Promise<PublicacionGenerada[]> {
-  const { systemPrompt, userPrompt } = construirPrompts(perfil, cantidad, tema, tendenciaActual);
+  const { systemPrompt, userPrompt } = construirPrompts(perfil, cantidad, tema, tendenciaActual, evitar);
 
   const geminiKey = claves.gemini || process.env.GEMINI_API_KEY;
   const groqKey = claves.groq || process.env.GROQ_API_KEY;

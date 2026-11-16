@@ -3,6 +3,7 @@ import { waitUntil } from "@vercel/functions";
 import { codigoVinculoValido, enviarMensaje, esChatOperador, escaparHtml, llamarTelegram, secretoWebhook, vincularChat } from "@/lib/telegram";
 import { bridgeVigilante, ejecutarVigilante, enviarInformeSemanal, reintentarEnvios, resolverIncidencia, resumenInforme, silenciarIncidencia } from "@/lib/vigilante";
 import { urlApp } from "@/lib/urlApp";
+import { bridgeAuto } from "@/lib/autopiloto/motor";
 
 export const maxDuration = 60;
 export const dynamic = "force-dynamic";
@@ -41,7 +42,11 @@ export async function POST(req: NextRequest) {
     let respuesta = "Acción no reconocida";
     let estado = "";
 
-    if (accion === "r") {
+    if (accion === "ap") {
+      const r = await bridgeAuto<{ ok?: boolean }>("aprobar", { publicacionId: clave });
+      respuesta = r?.ok ? "Aprobada" : "Ya estaba aprobada";
+      estado = r?.ok ? `✅ Aprobada por ${escaparHtml(actor)}: se publicará a su hora.` : "ℹ️ Ya estaba aprobada o no existe.";
+    } else if (accion === "r") {
       const inc = await bridgeVigilante<{ datos?: { ids?: string[] }; agente?: string }>("incidencia_ver", { clave });
       const ok = await reintentarEnvios(inc?.datos?.ids || [], base, { actor, via: "TELEGRAM", clave, agente: inc?.agente || "envios" });
       respuesta = ok ? "Reintentando…" : "No se pudo reintentar";
@@ -58,7 +63,7 @@ export async function POST(req: NextRequest) {
 
     await llamarTelegram("answerCallbackQuery", { callback_query_id: cq.id, text: respuesta });
     if (estado && cq.message) {
-      await llamarTelegram("editMessageReplyMarkup", { chat_id: chatId, message_id: cq.message.message_id, reply_markup: { inline_keyboard: [] } });
+      if (accion !== "ap") await llamarTelegram("editMessageReplyMarkup", { chat_id: chatId, message_id: cq.message.message_id, reply_markup: { inline_keyboard: [] } });
       await enviarMensaje(chatId, estado);
     }
     return NextResponse.json({ ok: true });

@@ -1,0 +1,369 @@
+// Motor del piloto automático: cada hora rellena los huecos de los próximos días
+// (publicación principal del calendario semanal, noticia del día e historia diaria),
+// genera texto + imagen/vídeo 9:16 y deja todo programado (o pendiente de aprobar).
+import { urlBridge } from "@/lib/bridgeUrl";
+import { generarImagen } from "@/lib/generadorImagen";
+import { descargarImagen, normalizarA916, subirBufferAlBridge } from "@/lib/imagenFormato";
+import { generarReel } from "@/lib/reel";
+import { renderizarTarjeta } from "@/lib/reel/tarjeta";
+import { escaparHtml } from "@/lib/telegram";
+import { avisarYRegistrar, bridgeVigilante, esModoNoche } from "@/lib/vigilante";
+import { NOMBRE_DIA, normalizarConfig, type ConfigAutoPiloto, type DiaPlantilla } from "@/lib/autopiloto/plantilla";
+import { buscarNoticias, type Noticia } from "@/lib/autopiloto/noticias";
+import { similitud, type Previa } from "@/lib/autopiloto/antiRepeticion";
+import { redactarHistoriaDiaria, redactarNoticia, redactarPrincipal, type PerfilAuto, type PublicacionAuto } from "@/lib/autopiloto/redactor";
+
+const BRIDGE_SECRET = process.env.BRIDGE_SECRET || "";
+const MARGEN_MIN = 40; // no se preparan huecos que salen en menos de 40 min
+const PRESUPUESTO_MS = 170_000; // no se empieza un trabajo nuevo pasado este tiempo (límite Vercel 300 s)
+
+export type Hueco = "PRINCIPAL" | "NOTICIA" | "HISTORIA";
+
+export interface EmpresaAuto extends PerfilAuto {
+  empresaId: string;
+  config: ConfigAutoPiloto;
+}
+
+export interface HuecoPendiente {
+  empresaId: string;
+  hueco: Hueco;
+  fecha: string; // "YYYY-MM-DD" (Madrid)
+  hora: string; // "HH:MM"
+  iso: string; // instante exacto
+  diaSemana: string; // "1".."7"
+  formato: string;
+}
+
+export interface ResultadoHueco {
+  hueco: Hueco;
+  cuando: string;
+  formato: string;
+  ok: boolean;
+  titulo?: string;
+  publicacionId?: string;
+  noticia?: string;
+  error?: string;
+  pendienteAprobacion?: boolean;
+}
+
+// ───────────── bridge ─────────────
+
+export async function bridgeAuto<T>(accion: string, datos: Record<string, unknown> = {}): Promise<T | null> {
+  const url = urlBridge("IONOS_BRIDGE_URL_AUTOPILOTO");
+  if (!url) return null;
+  try {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-Bridge-Secret": BRIDGE_SECRET },
+      body: JSON.stringify({ accion, ...datos }),
+      cache: "no-store",
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok) return (data && typeof data === "object" ? data : null) as T | null;
+    return data as T;
+  } catch {
+    return null;
+  }
+}
+
+// ───────────── fechas (Madrid) ─────────────
+
+function partesMadrid(d: Date) {
+  const p = new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Madrid", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false, weekday: "short" }).formatToParts(d);
+  const v = (t: string) => p.find((x) => x.type === t)?.value || "";
+  const dias: Record<string, string> = { Mon: "1", Tue: "2", Wed: "3", Thu: "4", Fri: "5", Sat: "6", Sun: "7" };
+  return { fecha: `${v("year")}-${v("month")}-${v("day")}`, diaSemana: dias[v("weekday")] || "1" };
+}
+
+/** "2026-11-17" + "10:00" en Madrid → ISO UTC exacto (respeta horario de verano). */
+export function madridAIso(fecha: string, hora: string): string {
+  const [h, m] = hora.split(":").map(Number);
+  const guess = new Date(`${fecha}T${String(h).padStart(2, "0")}:${String(m || 0).padStart(2, "0")}:00Z`);
+  for (let i = 0; i < 2; i++) {
+    const local = new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Madrid", year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false })
+      .format(guess)
+      .replace(" ", "T");
+    const desfase = Date.parse(`${local}:00Z`) - guess.getTime();
+    guess.setTime(Date.parse(`${fecha}T${String(h).padStart(2, "0")}:${String(m || 0).padStart(2, "0")}:00Z`) - desfase);
+  }
+  return guess.toISOString();
+}
+
+const etiquetaFecha = (h: HuecoPendiente) => `${NOMBRE_DIA[h.diaSemana]} ${h.fecha.slice(8, 10)}/${h.fecha.slice(5, 7)} ${h.hora}`;
+
+/** Huecos del calendario en los próximos días que aún no están cubiertos. */
+export async function huecosPendientes(e: EmpresaAuto, ahora = new Date()): Promise<HuecoPendiente[]> {
+  const c = e.config;
+  const candidatos: HuecoPendiente[] = [];
+  for (let d = 0; d <= c.diasAntelacion; d++) {
+    const { fecha, diaSemana } = partesMadrid(new Date(ahora.getTime() + d * 86400_000));
+    const dia = c.plantilla[diaSemana];
+    const add = (hueco: Hueco, hora: string, formato: string) => candidatos.push({ empresaId: e.empresaId, hueco, fecha, hora, iso: madridAIso(fecha, hora), diaSemana, formato });
+    if (dia && dia.formato !== "NADA") add("PRINCIPAL", c.horaPrincipal, dia.formato);
+    if (c.diasNoticia.includes(Number(diaSemana))) add("NOTICIA", c.horaNoticia, "IMAGEN");
+    if (c.historiasDiarias && dia?.formato !== "HISTORIAS") add("HISTORIA", c.horaHistoria, "HISTORIA");
+  }
+  const limite = ahora.getTime() + MARGEN_MIN * 60_000;
+  const futuros = candidatos.filter((h) => Date.parse(h.iso) > limite);
+  if (!futuros.length) return [];
+  const ocupados = (await bridgeAuto<{ slot: string; hueco: string }[]>("ocupados", { empresaId: e.empresaId, desde: futuros[0].iso, hasta: futuros[futuros.length - 1].iso })) || [];
+  const set = new Set((Array.isArray(ocupados) ? ocupados : []).map((o) => `${o.slot.slice(0, 16)}|${o.hueco}`));
+  return futuros.filter((h) => !set.has(`${h.fecha} ${h.hora}|${h.hueco}`)).sort((a, b) => a.iso.localeCompare(b.iso));
+}
+
+// ───────────── medios ─────────────
+
+async function imagen916(prompt: string): Promise<string> {
+  const url = await generarImagen(prompt);
+  try {
+    return await subirBufferAlBridge(await normalizarA916(await descargarImagen(url)));
+  } catch {
+    return url; // si no se puede normalizar/subir, se usa la URL original
+  }
+}
+
+async function subirVideo(mp4: Buffer): Promise<string> {
+  const url = urlBridge("IONOS_BRIDGE_URL_PUBLICACION_SUBIR_VIDEO");
+  if (!url) throw new Error("Falta el bridge de subida de vídeo");
+  const res = await fetch(url, { method: "POST", headers: { "Content-Type": "video/mp4", "X-Bridge-Secret": BRIDGE_SECRET }, body: new Uint8Array(mp4) });
+  const data = await res.json().catch(() => null);
+  if (!res.ok || !data?.url) throw new Error(data?.error || "No se pudo subir el vídeo a IONOS");
+  return data.url;
+}
+
+async function tarjeta(op: Parameters<typeof renderizarTarjeta>[0]): Promise<string> {
+  return subirBufferAlBridge(await renderizarTarjeta(op));
+}
+
+// ───────────── generación de un hueco ─────────────
+
+interface Contexto {
+  historial: Previa[];
+  noticiasUsadas: { url: string; titulo: string }[];
+  noticias: Noticia[] | null;
+  redesConectadas: string[];
+}
+
+async function cargarContexto(e: EmpresaAuto): Promise<Contexto> {
+  const [hist, redes] = await Promise.all([
+    bridgeAuto<{ publicaciones: { titulo: string; texto: string }[]; noticias: { noticiaUrl: string; noticiaTitulo: string }[] }>("historial", { empresaId: e.empresaId, dias: 120 }),
+    bridgeAuto<string[]>("redes_empresa", { empresaId: e.empresaId }),
+  ]);
+  return {
+    historial: (hist?.publicaciones || []).map((p) => ({ titulo: p.titulo, texto: p.texto })),
+    noticiasUsadas: (hist?.noticias || []).map((n) => ({ url: n.noticiaUrl, titulo: n.noticiaTitulo })),
+    noticias: null,
+    redesConectadas: Array.isArray(redes) ? redes : [],
+  };
+}
+
+function redesPara(e: EmpresaAuto, ctx: Contexto, formato: string): string[] {
+  const base = e.config.redes.length ? ctx.redesConectadas.filter((r) => e.config.redes.includes(r)) : ctx.redesConectadas;
+  if (formato === "HISTORIA") return base.filter((r) => r === "INSTAGRAM" || r === "FACEBOOK"); // historias: solo Meta
+  return base;
+}
+
+function ctaCorta(dia: DiaPlantilla): string {
+  if (dia.palabraClave) return `Comenta ${dia.palabraClave}`;
+  return dia.cta.split(/[.!]/)[0].split(" ").slice(0, 6).join(" ");
+}
+
+async function crearPub(
+  reservaId: number,
+  e: EmpresaAuto,
+  h: HuecoPendiente,
+  pub: PublicacionAuto,
+  formato: "IMAGEN" | "VIDEO" | "HISTORIA",
+  redes: string[],
+  extra: { imagenUrl?: string; reelPrueba?: boolean; noticia?: Noticia; fechaProgramada?: string } = {}
+): Promise<string> {
+  const r = await bridgeAuto<{ ok?: boolean; publicacionId?: string; error?: string }>("crear", {
+    reservaId,
+    empresaId: e.empresaId,
+    slot: h.iso,
+    fechaProgramada: extra.fechaProgramada || h.iso,
+    redes,
+    pub: { ...pub, formato, imagenUrl: extra.imagenUrl || null, reelPrueba: !!extra.reelPrueba },
+    noticia: extra.noticia ? { url: extra.noticia.url, titulo: extra.noticia.titulo, fuente: extra.noticia.fuente } : null,
+  });
+  if (!r?.publicacionId) throw new Error(r?.error || "No se pudo crear la publicación en IONOS");
+  return r.publicacionId;
+}
+
+async function completar(reservaId: number, publicacionId: string, aprobacion: boolean, cambios: Record<string, unknown>) {
+  const r = await bridgeAuto<{ ok?: boolean; error?: string }>("completar", { reservaId, publicacionId, estado: aprobacion ? "BORRADOR" : "PROGRAMADA", ...cambios });
+  if (!r?.ok) throw new Error(r?.error || "No se pudo completar la publicación");
+}
+
+async function reservar(e: EmpresaAuto, h: HuecoPendiente, hueco: string): Promise<number | null> {
+  const r = await bridgeAuto<{ ok?: boolean; id?: number; duplicado?: boolean; error?: string }>("reservar", { empresaId: e.empresaId, slot: h.iso, hueco, formato: h.formato });
+  if (r?.duplicado) return null;
+  if (!r?.ok || !r.id) throw new Error(r?.error || "autopiloto.php no responde (¿subido y ejecutado autopiloto.sql?)");
+  return r.id;
+}
+
+export async function generarHueco(e: EmpresaAuto, h: HuecoPendiente, ctx: Contexto): Promise<ResultadoHueco | null> {
+  const cuando = etiquetaFecha(h);
+  const reservaId = await reservar(e, h, h.hueco);
+  if (reservaId === null) return null; // otro proceso ya lo está preparando
+  const aprobacion = e.config.aprobacion;
+  try {
+    if (h.hueco === "PRINCIPAL") {
+      const dia = e.config.plantilla[h.diaSemana];
+      const pub = await redactarPrincipal(e, dia, ctx.historial);
+      ctx.historial.unshift({ titulo: pub.titulo, texto: pub.texto });
+
+      if (dia.formato === "HISTORIAS") {
+        const fondo = await imagen916(pub.imagenPrompt).catch(() => null);
+        const slides = pub.diapositivas.length ? pub.diapositivas : [{ titulo: pub.titulo, texto: dia.cta }];
+        const redes = redesPara(e, ctx, "HISTORIA");
+        let primeraId = "";
+        for (let i = 0; i < slides.length; i++) {
+          const ultima = i === slides.length - 1;
+          const url = await tarjeta({ fondoUrl: fondo, titulo: slides[i].titulo, texto: slides[i].texto, marca: e.nombre, pie: ultima ? dia.cta.slice(0, 60) : undefined, numero: `${i + 1}/${slides.length}` });
+          const rid = i === 0 ? reservaId : await reservar(e, h, `PRINCIPAL_${i + 1}`);
+          if (rid === null) continue;
+          const fechaProgramada = new Date(Date.parse(h.iso) + i * 2 * 60_000).toISOString();
+          const id = await crearPub(rid, e, h, { ...pub, titulo: `${pub.titulo} (${i + 1}/${slides.length})` }, "HISTORIA", redes, { imagenUrl: url, fechaProgramada });
+          await completar(rid, id, aprobacion, { imagenUrl: url, formato: "HISTORIA" });
+          if (i === 0) primeraId = id;
+        }
+        return { hueco: h.hueco, cuando, formato: `${slides.length} historias`, ok: true, titulo: pub.titulo, publicacionId: primeraId, pendienteAprobacion: aprobacion };
+      }
+
+      // REEL o CARRUSEL (carrusel = vídeo 9:16 diapositiva a diapositiva)
+      const imagenUrl = await imagen916(pub.imagenPrompt);
+      const redes = redesPara(e, ctx, "VIDEO");
+      const id = await crearPub(reservaId, e, h, pub, "VIDEO", redes, { imagenUrl, reelPrueba: dia.reelPrueba });
+      const reel = await generarReel({
+        empresa: e.nombre,
+        titulo: pub.titulo,
+        texto: pub.texto,
+        imagenPrompt: pub.imagenPrompt,
+        imagenUrl,
+        segundos: dia.segundos || 30,
+        cta: ctaCorta(dia),
+        diapositivas: dia.formato === "CARRUSEL" ? pub.diapositivas : undefined,
+      });
+      const videoUrl = await subirVideo(reel.mp4);
+      await completar(reservaId, id, aprobacion, { videoUrl, imagenUrl, formato: "VIDEO" });
+      return {
+        hueco: h.hueco,
+        cuando,
+        formato: dia.formato === "CARRUSEL" ? `Carrusel en vídeo (${pub.diapositivas.length} diap.)` : `Reel ${Math.round(reel.segundos)} s${dia.reelPrueba ? " · de prueba" : ""}`,
+        ok: true,
+        titulo: pub.titulo,
+        publicacionId: id,
+        pendienteAprobacion: aprobacion,
+      };
+    }
+
+    if (h.hueco === "NOTICIA") {
+      if (!ctx.noticias) ctx.noticias = await buscarNoticias(e.config.categorias);
+      const usadas = new Set(ctx.noticiasUsadas.map((n) => n.url));
+      const disponibles = ctx.noticias.filter(
+        (n) => !usadas.has(n.url) && !ctx.noticiasUsadas.some((u) => u.titulo && similitud(u.titulo, n.titulo) >= 0.6) && !ctx.historial.some((p) => similitud(p.titulo, n.titulo) >= 0.6)
+      );
+      const { noticia, pub } = await redactarNoticia(e, disponibles, ctx.historial);
+      ctx.noticiasUsadas.push({ url: noticia.url, titulo: noticia.titulo });
+      ctx.historial.unshift({ titulo: pub.titulo, texto: pub.texto });
+      const imagenUrl = await imagen916(pub.imagenPrompt);
+      const id = await crearPub(reservaId, e, h, pub, "IMAGEN", redesPara(e, ctx, "IMAGEN"), { imagenUrl, noticia });
+      await completar(reservaId, id, aprobacion, { imagenUrl, formato: "IMAGEN" });
+      return { hueco: h.hueco, cuando, formato: "Imagen 9:16 (noticia)", ok: true, titulo: pub.titulo, publicacionId: id, noticia: `${noticia.titulo} — ${noticia.fuente}`, pendienteAprobacion: aprobacion };
+    }
+
+    // Historia diaria
+    const semilla = Number(h.fecha.replace(/-/g, "")) % 97;
+    const pub = await redactarHistoriaDiaria(e, ctx.historial, semilla);
+    ctx.historial.unshift({ titulo: pub.titulo, texto: pub.texto });
+    const fondo = await imagen916(pub.imagenPrompt).catch(() => null);
+    const slide = pub.diapositivas[0] || { titulo: pub.titulo, texto: "Respóndeme por privado" };
+    const url = await tarjeta({ fondoUrl: fondo, titulo: slide.titulo, texto: slide.texto, marca: e.nombre, pie: "Responde a esta historia" });
+    const id = await crearPub(reservaId, e, h, pub, "HISTORIA", redesPara(e, ctx, "HISTORIA"), { imagenUrl: url });
+    await completar(reservaId, id, aprobacion, { imagenUrl: url, formato: "HISTORIA" });
+    return { hueco: h.hueco, cuando, formato: "Historia 9:16", ok: true, titulo: slide.titulo, publicacionId: id, pendienteAprobacion: aprobacion };
+  } catch (error) {
+    const mensaje = error instanceof Error ? error.message : String(error);
+    await bridgeAuto("fallo", { reservaId, error: mensaje });
+    return { hueco: h.hueco, cuando, formato: h.formato, ok: false, error: mensaje.slice(0, 300) };
+  }
+}
+
+// ───────────── ejecución completa ─────────────
+
+export async function empresasConPiloto(): Promise<EmpresaAuto[]> {
+  const filas = (await bridgeAuto<(PerfilAuto & { empresaId: string; config: unknown })[]>("activos")) || [];
+  return (Array.isArray(filas) ? filas : []).map((f) => ({ ...f, config: normalizarConfig(f.config as Partial<ConfigAutoPiloto>) }));
+}
+
+export async function ejecutarAutopiloto(base: string, opciones: { empresaId?: string; maxTrabajos?: number } = {}) {
+  const inicio = Date.now();
+  const empresas = (await empresasConPiloto()).filter((e) => !opciones.empresaId || e.empresaId === opciones.empresaId);
+  const resultados: (ResultadoHueco & { empresa: string })[] = [];
+  let pendientesTotal = 0;
+  let trabajos = 0;
+
+  for (const e of empresas) {
+    const huecos = await huecosPendientes(e);
+    pendientesTotal += huecos.length;
+    if (!huecos.length) {
+      await bridgeAuto("marcar_ejecucion", { empresaId: e.empresaId, resultado: { cuando: new Date().toISOString(), generadas: 0, pendientes: 0 } });
+      continue;
+    }
+    const ctx = await cargarContexto(e);
+    const propios: ResultadoHueco[] = [];
+    for (const h of huecos) {
+      if (Date.now() - inicio > PRESUPUESTO_MS || trabajos >= (opciones.maxTrabajos ?? 6)) break;
+      // Un vídeo tarda 1-2 min: si no queda margen, se deja para la siguiente pasada
+      if (h.hueco === "PRINCIPAL" && h.formato !== "HISTORIAS" && Date.now() - inicio > 60_000) continue;
+      trabajos++;
+      const r = await generarHueco(e, h, ctx);
+      if (r) propios.push(r);
+    }
+    resultados.push(...propios.map((r) => ({ ...r, empresa: e.nombre })));
+    await bridgeAuto("marcar_ejecucion", {
+      empresaId: e.empresaId,
+      resultado: { cuando: new Date().toISOString(), generadas: propios.filter((r) => r.ok).length, errores: propios.filter((r) => !r.ok).length, pendientes: huecos.length - propios.length },
+    });
+    if (propios.length) await avisarResultados(base, e, propios);
+  }
+
+  const errores = resultados.filter((r) => !r.ok);
+  const restantes = Math.max(0, pendientesTotal - resultados.filter((r) => r.ok).length);
+  await bridgeVigilante("agentes_guardar", {
+    agentes: [
+      {
+        agente: "autopiloto",
+        estado: !empresas.length ? "OFF" : errores.length ? (errores.length === resultados.length ? "ERROR" : "AVISO") : "OK",
+        mensaje: !empresas.length
+          ? "Piloto automático desactivado"
+          : `${resultados.filter((r) => r.ok).length} generada(s) ahora · ${restantes} hueco(s) pendientes${errores.length ? ` · ${errores.length} error(es)` : ""}`,
+        detalle: resultados.map((r) => `${r.ok ? "✅" : "❌"} ${r.empresa} · ${r.cuando} · ${r.formato}${r.titulo ? ` · ${r.titulo}` : ""}${r.error ? ` · ${r.error}` : ""}`).slice(0, 15),
+      },
+    ],
+  });
+
+  return { empresas: empresas.length, resultados, pendientes: restantes, segundos: Math.round((Date.now() - inicio) / 1000) };
+}
+
+async function avisarResultados(base: string, e: EmpresaAuto, res: ResultadoHueco[]) {
+  const ok = res.filter((r) => r.ok);
+  const mal = res.filter((r) => !r.ok);
+  const lineas = [
+    `🤖 <b>Piloto automático · ${escaparHtml(e.nombre)}</b>`,
+    "",
+    ...ok.map((r) => `✅ ${escaparHtml(r.cuando)} · ${escaparHtml(r.formato)}\n   «${escaparHtml(r.titulo || "")}»${r.noticia ? `\n   📰 ${escaparHtml(r.noticia)}` : ""}${r.pendienteAprobacion ? "\n   ⏳ Pendiente de tu aprobación" : ""}`),
+    ...mal.map((r) => `❌ ${escaparHtml(r.cuando)} · ${escaparHtml(r.formato)}: ${escaparHtml(r.error || "error")} (se reintenta en la próxima pasada)`),
+  ];
+  const aprobar = ok.filter((r) => r.pendienteAprobacion && r.publicacionId).slice(0, 4);
+  await avisarYRegistrar(lineas.join("\n"), {
+    agente: "autopiloto",
+    detalle: `Piloto automático: ${ok.length} generada(s), ${mal.length} error(es)`,
+    aplazar: esModoNoche() && !mal.length && !aprobar.length,
+    botones: [
+      ...aprobar.map((r) => [{ texto: `✅ Aprobar ${r.cuando}`, datos: `ap:${r.publicacionId}` }]),
+      [{ texto: "📚 Ver en la Biblioteca", url: `${base.replace(/\/+$/, "")}/biblioteca?empresa=${e.empresaId}` }],
+    ],
+  });
+}

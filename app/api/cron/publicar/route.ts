@@ -83,7 +83,8 @@ interface PublicacionProgramada {
   hashtags: string[];
   imagenUrl: string | null;
   videoUrl?: string | null;
-  formato?: "IMAGEN" | "VIDEO" | null;
+  formato?: "IMAGEN" | "VIDEO" | "HISTORIA" | null;
+  reelPrueba?: number | string | boolean | null;
   altText?: string | null;
   redesConectadas: RedConectadaResumen[];
 }
@@ -324,19 +325,69 @@ async function publicarVideoEnFacebook(pageId: string, token: string, texto: str
   return { postIdExterno: data.id };
 }
 
-async function publicarReelEnInstagram(igId: string, token: string, texto: string, videoUrl: string) {
+// Historia de Instagram (imagen 9:16, sin texto: el texto va dentro de la imagen)
+async function publicarHistoriaInstagram(igId: string, token: string, imagenUrl: string) {
   const crearRes = await fetch(`https://graph.facebook.com/${GRAPH_VERSION}/${igId}/media`, {
     method: "POST",
-    body: new URLSearchParams({
-      media_type: "REELS",
-      video_url: videoUrl,
-      caption: texto,
-      share_to_feed: "true",
-      access_token: token,
-    }),
+    body: new URLSearchParams({ media_type: "STORIES", image_url: imagenUrl, access_token: token }),
   });
   const crearData = await crearRes.json().catch(() => ({}));
   if (!crearRes.ok || crearData.error || !crearData.id) {
+    return { error: crearData?.error?.message || "Error creando la historia en Instagram" };
+  }
+  for (let intento = 0; intento < 10; intento++) {
+    await new Promise((r) => setTimeout(r, 3000));
+    const estado = await fetch(`https://graph.facebook.com/${GRAPH_VERSION}/${crearData.id}?fields=status_code&access_token=${token}`)
+      .then((r) => r.json())
+      .catch(() => ({}));
+    if (estado.status_code === "ERROR" || estado.status_code === "EXPIRED") return { error: "Instagram no pudo procesar la historia." };
+    if (estado.status_code && estado.status_code !== "FINISHED") continue;
+    const pub = await fetch(`https://graph.facebook.com/${GRAPH_VERSION}/${igId}/media_publish`, {
+      method: "POST",
+      body: new URLSearchParams({ creation_id: crearData.id, access_token: token }),
+    })
+      .then((r) => r.json())
+      .catch(() => ({}));
+    if (pub.error || !pub.id) return { error: pub?.error?.message || "Error publicando la historia en Instagram" };
+    return { postIdExterno: pub.id };
+  }
+  return { error: "La historia tardó demasiado en procesarse en Instagram." };
+}
+
+// Historia de página de Facebook: foto sin publicar → photo_stories
+async function publicarHistoriaFacebook(pageId: string, token: string, imagenUrl: string) {
+  const foto = await fetch(`https://graph.facebook.com/${GRAPH_VERSION}/${pageId}/photos`, {
+    method: "POST",
+    body: new URLSearchParams({ url: imagenUrl, published: "false", access_token: token }),
+  })
+    .then((r) => r.json())
+    .catch(() => ({}));
+  if (foto.error || !foto.id) return { error: foto?.error?.message || "Error subiendo la imagen de la historia a Facebook" };
+  const historia = await fetch(`https://graph.facebook.com/${GRAPH_VERSION}/${pageId}/photo_stories`, {
+    method: "POST",
+    body: new URLSearchParams({ photo_id: foto.id, access_token: token }),
+  })
+    .then((r) => r.json())
+    .catch(() => ({}));
+  if (historia.error || !(historia.post_id || historia.id)) return { error: historia?.error?.message || "Error publicando la historia en Facebook" };
+  return { postIdExterno: historia.post_id || historia.id };
+}
+
+async function publicarReelEnInstagram(igId: string, token: string, texto: string, videoUrl: string, prueba = false): Promise<{ postIdExterno?: string; error?: string }> {
+  const parametros = new URLSearchParams({
+    media_type: "REELS",
+    video_url: videoUrl,
+    caption: texto,
+    share_to_feed: "true",
+    access_token: token,
+  });
+  // Trial Reel: solo se muestra a no seguidores; Instagram lo pasa al perfil si funciona
+  if (prueba) parametros.set("trial_params", JSON.stringify({ graduation_strategy: "SS_PERFORMANCE" }));
+  const crearRes = await fetch(`https://graph.facebook.com/${GRAPH_VERSION}/${igId}/media`, { method: "POST", body: parametros });
+  const crearData = await crearRes.json().catch(() => ({}));
+  if (!crearRes.ok || crearData.error || !crearData.id) {
+    // Si la cuenta aún no admite Reels de prueba, se publica como Reel normal
+    if (prueba) return publicarReelEnInstagram(igId, token, texto, videoUrl, false);
     return { error: crearData?.error?.message || "Error creando el contenedor del Reel en Instagram" };
   }
 
@@ -400,16 +451,22 @@ async function procesarPublicaciones() {
 
     // Formato VIDEO: Reel en Instagram y vídeo en Facebook. Google Business y X siguen con imagen/texto.
     const esVideo = pub.formato === "VIDEO" && !!pub.videoUrl;
+    const esHistoria = pub.formato === "HISTORIA" && !!pub.imagenUrl;
+    const prueba = Number(pub.reelPrueba) === 1 || pub.reelPrueba === true;
 
     for (const red of pub.redesConectadas || []) {
       let resultado: { postIdExterno?: string; error?: string };
-      if (red.red === "FACEBOOK") {
+      if (esHistoria) {
+        if (red.red === "FACEBOOK") resultado = await publicarHistoriaFacebook(red.cuentaExterna, red.accessToken, pub.imagenUrl!);
+        else if (red.red === "INSTAGRAM") resultado = await publicarHistoriaInstagram(red.cuentaExterna, red.accessToken, pub.imagenUrl!);
+        else continue; // historias: solo Instagram y Facebook
+      } else if (red.red === "FACEBOOK") {
         resultado = esVideo
           ? await publicarVideoEnFacebook(red.cuentaExterna, red.accessToken, textoCompleto, pub.videoUrl!)
           : await publicarEnFacebook(red.cuentaExterna, red.accessToken, textoCompleto, pub.imagenUrl);
       } else if (red.red === "INSTAGRAM") {
         resultado = esVideo
-          ? await publicarReelEnInstagram(red.cuentaExterna, red.accessToken, textoCompleto, pub.videoUrl!)
+          ? await publicarReelEnInstagram(red.cuentaExterna, red.accessToken, textoCompleto, pub.videoUrl!, prueba)
           : await publicarEnInstagram(red.cuentaExterna, red.accessToken, textoCompleto, pub.imagenUrl, pub.altText);
       } else if (red.red === "TWITTER") {
         resultado = await publicarEnX(red.accessToken, textoCompleto);

@@ -15,6 +15,7 @@ export const AGENTES: DefAgente[] = [
   { id: "publicador", nombre: "Publicador", icono: "🤖", descripcion: "Publica a su hora lo programado en el Calendario.", frecuencia: "cada 15 min" },
   { id: "envios", nombre: "Envíos a redes", icono: "📤", descripcion: "Resultado de cada publicación. Corrige solo: reintentos, imagen que falta, Reel que falla → imagen, límite de la red → reprograma.", frecuencia: "cada 15 min" },
   { id: "redes", nombre: "Conexiones", icono: "🌐", descripcion: "Tokens de Facebook, Instagram y Google Business. Renueva los de Meta antes de caducar y avisa 7 días antes si no puede.", frecuencia: "cada hora" },
+  { id: "autopiloto", nombre: "Piloto automático", icono: "🗓️", descripcion: "Prepara cada día el calendario semanal (Reel, carrusel, historias), la noticia del día y la historia diaria, sin repetir.", frecuencia: "cada hora" },
   { id: "ionos", nombre: "IONOS", icono: "🔌", descripcion: "Bridges PHP y base de datos en IONOS.", frecuencia: "cada 15 min" },
   { id: "ia_texto", nombre: "IA de texto", icono: "🧠", descripcion: "Gemini, Groq, Cerebras y OpenRouter (rotación automática).", frecuencia: "cada hora" },
   { id: "ia_imagen", nombre: "IA de imagen", icono: "🎨", descripcion: "Gemini imagen, con Pollinations como respaldo.", frecuencia: "cada hora" },

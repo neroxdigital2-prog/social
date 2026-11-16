@@ -728,6 +728,13 @@ export async function ejecutarVigilante(base: string, opciones: { revisarTokens?
 
   // ── 4) Revisión horaria: conexiones, IA, Reels, WhatsApp, Telegram ──
   if (opciones.revisarTokens) {
+    // Piloto automático: prepara los huecos de los próximos días (en segundo plano, hasta 5 min)
+    const secretoCron = process.env.CRON_SECRET;
+    if (secretoCron) {
+      await fetch(enlace(base, "/api/cron/autopiloto"), { headers: { Authorization: `Bearer ${secretoCron}` }, cache: "no-store" })
+        .then((r) => r.ok && informe.revisado.push("Piloto automático lanzado"))
+        .catch(() => {});
+    }
     revisados.add("token");
     const redes = (await bridgeVigilante<RedCredencial[]>("redes")) || [];
     const comprobaciones = await Promise.all(
