@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { BellOff, CheckCircle2, ChevronDown, RotateCcw, Trash2 } from "lucide-react";
-import { NOMBRE_AGENTE, TEXTO_VIA, duracion, fechaHoraBD } from "@/lib/agentes";
+import { NOMBRE_AGENTE, TEXTO_VIA, duracion, fechaHoraBD, reparacionDe } from "@/lib/agentes";
 import type { EventoIncidencia, IncidenciaVista } from "@/components/centro/tipos";
 
 const ICONO_EVENTO: Record<EventoIncidencia["tipo"], string> = {
@@ -95,6 +95,7 @@ export function IncidenciaTarjeta({ inc, onCambio, abiertaInicial = false }: { i
   const fallidos = avisos.filter((e) => entregado(e.entregado) === false).length;
   const ultimoAviso = [...avisos].reverse().find((e) => e.canal !== "DASHBOARD");
   const esEnvio = inc.clave.startsWith("pub:");
+  const reparacion = reparacionDe(inc.clave, inc.agente);
   const id = `cc-inc-${inc.clave.replace(/[^a-z0-9]/gi, "-")}`;
 
   async function accion(tipo: "reintentar" | "resolver" | "silenciar") {
@@ -133,7 +134,9 @@ export function IncidenciaTarjeta({ inc, onCambio, abiertaInicial = false }: { i
           <strong id={`${id}-t`}>{inc.titulo}</strong>
           <span className="dsh-muted">
             {NOMBRE_AGENTE[inc.agente || ""] || "Sistema"} · detectada {fechaHoraBD(inc.primeraVez)} ·{" "}
-            {inc.estado === "RESUELTA" ? `resuelta en ${duracion(inc.duracionSeg)}` : `abierta hace ${duracion(inc.duracionSeg)}`}
+            {inc.estado === "RESUELTA"
+              ? `resuelta el ${fechaHoraBD(inc.resueltaEn)} por ${inc.resueltaPor || "—"} (${duracion(inc.duracionSeg)})`
+              : `abierta hace ${duracion(inc.duracionSeg)}`}
           </span>
           <span className="cc-inc-chips">
             <span className={`cc-chip cc-chip-${inc.estado.toLowerCase()}`}>{ETIQUETA_ESTADO[inc.estado]}</span>
@@ -148,6 +151,36 @@ export function IncidenciaTarjeta({ inc, onCambio, abiertaInicial = false }: { i
 
       {abierta && (
         <div id={id} className="cc-inc-cuerpo">
+          <dl className="cc-reparar">
+            <div>
+              <dt>🔎 Qué es</dt>
+              <dd>{inc.titulo}</dd>
+            </div>
+            <div>
+              <dt>🕒 Detectada</dt>
+              <dd>{fechaHoraBD(inc.primeraVez)}</dd>
+            </div>
+            <div>
+              <dt>🛠️ Dónde se repara</dt>
+              <dd>
+                <a href={reparacion.ruta}>{reparacion.lugar}</a>
+              </dd>
+            </div>
+            <div>
+              <dt>👤 {inc.estado === "RESUELTA" ? "Quién la reparó" : "Quién la repara"}</dt>
+              <dd>
+                {inc.estado === "RESUELTA"
+                  ? `${inc.resueltaPor || "—"}${inc.resueltaVia ? ` (${TEXTO_VIA[inc.resueltaVia] || inc.resueltaVia})` : ""}`
+                  : reparacion.quien}
+              </dd>
+            </div>
+            {inc.estado === "RESUELTA" && (
+              <div>
+                <dt>✅ Resuelta</dt>
+                <dd>{fechaHoraBD(inc.resueltaEn)}</dd>
+              </div>
+            )}
+          </dl>
           {inc.estado === "RESUELTA" && (
             <p className="cc-resolucion">
               ✅ <strong>Resuelta el {fechaHoraBD(inc.resueltaEn)}</strong> por <strong>{inc.resueltaPor || "—"}</strong>

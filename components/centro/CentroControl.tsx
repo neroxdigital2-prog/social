@@ -1,8 +1,9 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { RefreshCw, Trash2 } from "lucide-react";
-import { AGENTES, NOMBRE_AGENTE, fechaHoraBD } from "@/lib/agentes";
+import { Download, RefreshCw, Trash2 } from "lucide-react";
+import { AGENTES, NOMBRE_AGENTE, TEXTO_VIA, duracion, fechaHoraBD, reparacionDe } from "@/lib/agentes";
+import { descargarCSV, sello } from "@/lib/exportar";
 import { useCentro } from "@/components/centro/useCentro";
 import { PanelAgentes } from "@/components/centro/PanelAgentes";
 import { TelegramConexion } from "@/components/centro/TelegramConexion";
@@ -11,83 +12,116 @@ import { EmpresasActivas } from "@/components/centro/EmpresasActivas";
 import { IncidenciaTarjeta, textoEvento } from "@/components/centro/IncidenciaTarjeta";
 import type { DisponibilidadDia, EventoIncidencia, IncidenciaVista } from "@/components/centro/tipos";
 
-type Filtro = "pendientes" | "abiertas" | "silenciadas" | "resueltas" | "todas";
+type Vista = "activas" | "historial";
 
-const FILTROS: { id: Filtro; texto: string }[] = [
-  { id: "pendientes", texto: "Pendientes" },
-  { id: "abiertas", texto: "Abiertas" },
-  { id: "silenciadas", texto: "Silenciadas" },
-  { id: "resueltas", texto: "Resueltas" },
-  { id: "todas", texto: "Todas" },
-];
+function leerAgenteUrl(): string {
+  if (typeof window === "undefined") return "";
+  return new URLSearchParams(window.location.search).get("agente") || "";
+}
 
-function Incidencias({ onCambio }: { onCambio: () => void }) {
-  const [filtro, setFiltro] = useState<Filtro>("pendientes");
-  const [agente, setAgente] = useState("");
+/** Averías activas (abiertas y silenciadas) o historial de resueltas. Las resueltas salen del panel y quedan aquí con fecha y hora. */
+function Incidencias({ vista, onCambio }: { vista: Vista; onCambio: () => void }) {
+  const [agente, setAgente] = useState(vista === "historial" ? leerAgenteUrl() : "");
   const [dias, setDias] = useState(30);
   const [lista, setLista] = useState<IncidenciaVista[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   const cargar = useCallback(async () => {
     setError(null);
-    const q = new URLSearchParams({ estado: filtro, dias: String(dias) });
+    const q = new URLSearchParams({ estado: vista === "activas" ? "pendientes" : "resueltas", dias: String(dias) });
     if (agente) q.set("agente", agente);
     const res = await fetch(`/api/centro/incidencias?${q}`, { cache: "no-store" }).catch(() => null);
     const data = await res?.json().catch(() => null);
     if (!res?.ok || !Array.isArray(data)) {
-      setError(data?.error || "No se pudo cargar el historial.");
+      setError(data?.error || "No se pudo cargar.");
       setLista([]);
       return;
     }
     setLista(data);
-  }, [filtro, agente, dias]);
+  }, [vista, agente, dias]);
 
   useEffect(() => {
     cargar();
+    if (vista === "activas") {
+      const t = setInterval(() => document.visibilityState === "visible" && cargar(), 60_000);
+      return () => clearInterval(t);
+    }
+  }, [cargar, vista]);
+
+  // Si una avería cambia en una lista (resuelta, borrada…), la otra se actualiza también
+  useEffect(() => {
+    const alCambiar = () => cargar();
+    window.addEventListener("cc-incidencias", alCambiar);
+    return () => window.removeEventListener("cc-incidencias", alCambiar);
   }, [cargar]);
 
-  async function limpiar(modo: "resueltas" | "todas") {
-    const txt = modo === "resueltas" ? "¿Borrar TODOS los reportes ya resueltos? No se puede deshacer." : "¿Borrar TODOS los reportes (también los abiertos)? Si el fallo sigue, el vigilante lo volverá a abrir. No se puede deshacer.";
-    if (!window.confirm(txt)) return;
-    const res = await fetch("/api/centro/incidencias", {
-      method: "DELETE",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ limpiar: modo }),
-    }).catch(() => null);
+  useEffect(() => {
+    if (vista === "historial" && window.location.hash === "#historial") document.getElementById("historial")?.scrollIntoView({ behavior: "smooth" });
+  }, [vista]);
+
+  async function limpiar() {
+    if (!window.confirm("¿Borrar del historial TODOS los reportes resueltos? No se puede deshacer.")) return;
+    const res = await fetch("/api/centro/incidencias", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ limpiar: "resueltas" }) }).catch(() => null);
     const data = await res?.json().catch(() => ({}));
     if (!res?.ok) setError(data?.error || "No se pudo borrar.");
-    await cargar();
+    window.dispatchEvent(new Event("cc-incidencias"));
     onCambio();
   }
 
+  function exportar() {
+    if (!lista?.length) return;
+    descargarCSV(
+      `historial-averias-${sello()}.csv`,
+      ["Detectada", "Avería", "Agente", "Nivel", "Dónde se repara", "Resuelta", "Resuelta por", "Vía", "Motivo", "Duración", "Avisos enviados"],
+      lista.map((i) => {
+        const r = reparacionDe(i.clave, i.agente);
+        return [
+          fechaHoraBD(i.primeraVez),
+          i.titulo,
+          NOMBRE_AGENTE[i.agente || ""] || "Sistema",
+          i.nivel === "CRITICO" ? "Crítico" : "Aviso",
+          r.lugar,
+          fechaHoraBD(i.resueltaEn),
+          i.resueltaPor || "",
+          i.resueltaVia ? TEXTO_VIA[i.resueltaVia] || i.resueltaVia : "",
+          i.motivoResolucion || "",
+          duracion(i.duracionSeg),
+          i.eventos.filter((e) => e.tipo === "AVISO" && Number(e.entregado) === 1).length,
+        ];
+      })
+    );
+  }
+
+  const esHistorial = vista === "historial";
   return (
-    <section className="dsh-card" aria-labelledby="cc-historial-titulo">
+    <section className="dsh-card" id={esHistorial ? "historial" : "activas"} aria-labelledby={`cc-${vista}-titulo`}>
       <header className="dsh-card-header">
         <div>
-          <h2 id="cc-historial-titulo">Reporte de averías</h2>
-          <p className="dsh-muted">Qué falló, a quién se avisó (canal, destino, fecha y hora, si se entregó) y quién lo resolvió.</p>
+          <h2 id={`cc-${vista}-titulo`}>{esHistorial ? "📜 Historial de averías resueltas" : "🔴 Averías activas"}</h2>
+          <p className="dsh-muted">
+            {esHistorial
+              ? "Registro permanente: qué falló, dónde se reparó, quién lo hizo y cuándo (fecha y hora)."
+              : "Lo que falla ahora: qué es, dónde se repara y quién. Al resolverse sale de aquí y pasa al historial."}
+          </p>
         </div>
         <div className="cc-acciones">
           <button type="button" className="dsh-boton dsh-boton-mini" onClick={cargar}>
             <RefreshCw size={14} aria-hidden="true" /> Actualizar
           </button>
-          <button type="button" className="dsh-boton dsh-boton-mini" onClick={() => limpiar("resueltas")}>
-            <Trash2 size={14} aria-hidden="true" /> Borrar resueltas
-          </button>
-          <button type="button" className="dsh-boton dsh-boton-mini" onClick={() => limpiar("todas")}>
-            <Trash2 size={14} aria-hidden="true" /> Borrar todas
-          </button>
+          {esHistorial && (
+            <>
+              <button type="button" className="dsh-boton dsh-boton-mini" onClick={exportar} disabled={!lista?.length}>
+                <Download size={14} aria-hidden="true" /> Excel
+              </button>
+              <button type="button" className="dsh-boton dsh-boton-mini" onClick={limpiar} disabled={!lista?.length}>
+                <Trash2 size={14} aria-hidden="true" /> Vaciar historial
+              </button>
+            </>
+          )}
         </div>
       </header>
 
       <div className="cc-filtros">
-        <div className="crm-pestanas" role="tablist" aria-label="Estado">
-          {FILTROS.map((f) => (
-            <button key={f.id} type="button" role="tab" aria-selected={filtro === f.id} className="crm-pestana" onClick={() => setFiltro(f.id)}>
-              {f.texto}
-            </button>
-          ))}
-        </div>
         <label className="cc-select">
           <span>Agente</span>
           <select value={agente} onChange={(e) => setAgente(e.target.value)}>
@@ -95,23 +129,25 @@ function Incidencias({ onCambio }: { onCambio: () => void }) {
             {AGENTES.map((a) => <option key={a.id} value={a.id}>{a.nombre}</option>)}
           </select>
         </label>
-        <label className="cc-select">
-          <span>Resueltas de los últimos</span>
-          <select value={dias} onChange={(e) => setDias(Number(e.target.value))}>
-            {[7, 30, 90].map((d) => <option key={d} value={d}>{d} días</option>)}
-          </select>
-        </label>
+        {esHistorial && (
+          <label className="cc-select">
+            <span>Periodo</span>
+            <select value={dias} onChange={(e) => setDias(Number(e.target.value))}>
+              {[7, 30, 90].map((d) => <option key={d} value={d}>Últimos {d} días</option>)}
+            </select>
+          </label>
+        )}
       </div>
 
       {error && <p role="alert" className="dsh-alerta dsh-alerta-error">{error}</p>}
       {lista === null ? (
         <p className="dsh-muted">Cargando…</p>
       ) : lista.length === 0 ? (
-        <p className="cc-sin-averias">✅ No hay averías en esta vista.</p>
+        <p className="cc-sin-averias">{esHistorial ? "No hay averías resueltas en este periodo." : "✅ No hay averías activas."}</p>
       ) : (
         <div className="cc-incidencias">
           {lista.map((i) => (
-            <IncidenciaTarjeta key={i.clave} inc={i} onCambio={() => { cargar(); onCambio(); }} />
+            <IncidenciaTarjeta key={i.clave} inc={i} onCambio={() => { window.dispatchEvent(new Event("cc-incidencias")); onCambio(); }} />
           ))}
         </div>
       )}
@@ -246,6 +282,16 @@ export function CentroControl() {
   return (
     <>
       <PanelAgentes datos={datos} error={error} recargar={recargar} />
+      <Incidencias vista="activas" onCambio={recargar} />
+      <Incidencias vista="historial" onCambio={recargar} />
+      <div className="dsh-rejilla">
+        <div className="dsh-columna-principal">
+          <Autocorrecciones />
+        </div>
+        <div className="dsh-columna-lateral cc-col-disp">
+          <Disponibilidad filas={datos?.disponibilidad || []} />
+        </div>
+      </div>
       <section className="dsh-card" aria-labelledby="cc-emp-titulo">
         <div>
           <h2 id="cc-emp-titulo">🏢 Empresas activas</h2>
@@ -259,15 +305,6 @@ export function CentroControl() {
         </div>
         <TelegramConexion onCambio={recargar} />
       </section>
-      <Incidencias onCambio={recargar} />
-      <div className="dsh-rejilla">
-        <div className="dsh-columna-principal">
-          <Autocorrecciones />
-        </div>
-        <div className="dsh-columna-lateral cc-col-disp">
-          <Disponibilidad filas={datos?.disponibilidad || []} />
-        </div>
-      </div>
       <p className="dsh-muted">
         Telegram: {datos?.telegram ? "✅ conectado" : "⚠️ sin configurar"} · Email de escalado: {datos?.config?.email ? "✅ configurado" : "⚠️ sin configurar"} ·
         Modo noche: {datos?.config?.modoNoche ? `${datos.config.modoNoche}${datos.config.nocheAhora ? " (activo ahora 🌙)" : ""}` : "desactivado"} · Escalado a los{" "}

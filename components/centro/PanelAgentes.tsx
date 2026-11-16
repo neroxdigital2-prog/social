@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { ArrowRight, RefreshCw, X } from "lucide-react";
-import { TEXTO_ESTADO, fechaHoraBD, haceTiempo } from "@/lib/agentes";
+import { GRUPOS_AGENTES, TEXTO_ESTADO, fechaHoraBD, haceTiempo } from "@/lib/agentes";
 import { IncidenciaTarjeta } from "@/components/centro/IncidenciaTarjeta";
 import { TelegramConexion } from "@/components/centro/TelegramConexion";
 import type { AgenteVista, ColaVista, DatosCentro, DiagnosticoVista, IncidenciaVista } from "@/components/centro/tipos";
@@ -58,15 +58,12 @@ function AvisoDiagnostico({ d }: { d: DiagnosticoVista }) {
 
 function DetalleAgente({ agente, cola, onCerrar, onCambio }: { agente: AgenteVista; cola?: ColaVista | null; onCerrar: () => void; onCambio: () => void }) {
   const [incidencias, setIncidencias] = useState<IncidenciaVista[] | null>(null);
-  const [resueltas, setResueltas] = useState<IncidenciaVista[]>([]);
 
   const cargar = useCallback(async () => {
-    const [p, r] = await Promise.all([
-      fetch(`/api/centro/incidencias?agente=${agente.id}&estado=pendientes`, { cache: "no-store" }).then((x) => (x.ok ? x.json() : [])).catch(() => []),
-      fetch(`/api/centro/incidencias?agente=${agente.id}&estado=resueltas&dias=7`, { cache: "no-store" }).then((x) => (x.ok ? x.json() : [])).catch(() => []),
-    ]);
+    const p = await fetch(`/api/centro/incidencias?agente=${agente.id}&estado=pendientes`, { cache: "no-store" })
+      .then((x) => (x.ok ? x.json() : []))
+      .catch(() => []);
     setIncidencias(Array.isArray(p) ? p : []);
-    setResueltas(Array.isArray(r) ? r.slice(0, 5) : []);
   }, [agente.id]);
 
   useEffect(() => {
@@ -92,6 +89,12 @@ function DetalleAgente({ agente, cola, onCerrar, onCambio }: { agente: AgenteVis
         <div><dt>Última revisión</dt><dd>{fechaHoraBD(agente.ultimaRevision)} ({haceTiempo(agente.segundosRevision)})</dd></div>
         {agente.ultimaActividad && <div><dt>Última actividad</dt><dd>{fechaHoraBD(agente.ultimaActividad)}</dd></div>}
         <div><dt>Se revisa</dt><dd>{agente.frecuencia}</dd></div>
+        {agente.repara && (
+          <>
+            <div><dt>Si falla, se repara en</dt><dd><a href={agente.repara.ruta}>{agente.repara.lugar}</a></dd></div>
+            <div><dt>Quién lo repara</dt><dd>{agente.repara.quien}</dd></div>
+          </>
+        )}
       </dl>
       {agente.detalle.length > 0 && (
         <ul className="cc-lista-detalle">
@@ -126,14 +129,9 @@ function DetalleAgente({ agente, cola, onCerrar, onCambio }: { agente: AgenteVis
         </div>
       )}
 
-      {resueltas.length > 0 && (
-        <>
-          <h4 className="cc-subtitulo">Resueltas (últimos 7 días)</h4>
-          <div className="cc-incidencias">
-            {resueltas.map((i) => <IncidenciaTarjeta key={i.clave} inc={i} />)}
-          </div>
-        </>
-      )}
+      <a className="dsh-enlace cc-enlace" href={`/centro-control?agente=${agente.id}#historial`}>
+        📜 Ver historial de averías resueltas de {agente.nombre}
+      </a>
     </section>
   );
 }
@@ -210,31 +208,52 @@ export function PanelAgentes({
 
       {(error || aviso) && <p role="status" className={error ? "dsh-alerta dsh-alerta-error" : "dsh-muted"}>{error || aviso}</p>}
 
-      <ul className="cc-rejilla" aria-label="Agentes">
-        {(datos ? agentes : Array.from({ length: 10 }, (_, i) => ({ id: `s${i}` }) as AgenteVista)).map((a) =>
-          !datos ? (
-            <li key={a.id} className="cc-agente cc-agente-esqueleto" aria-hidden="true" />
-          ) : (
-            <li key={a.id}>
-              <button
-                type="button"
-                className={`cc-agente cc-agente-${LUZ[a.estado]}`}
-                aria-pressed={seleccion === a.id}
-                aria-label={`${a.nombre}: ${TEXTO_ESTADO[a.estado]}. ${a.mensaje}`}
-                onClick={() => setSeleccion(seleccion === a.id ? null : a.id)}
-              >
-                <span className="cc-agente-fila">
-                  <span className={`cc-luz cc-luz-${LUZ[a.estado]}`} aria-hidden="true" />
-                  <span className="cc-agente-nombre"><span aria-hidden="true">{a.icono}</span> {a.nombre}</span>
-                  {a.abiertas > 0 && <span className="cc-contador" title="Averías abiertas">{a.abiertas}</span>}
-                </span>
-                <span className="cc-agente-msg">{a.mensaje}</span>
-                <span className="cc-agente-hora">{haceTiempo(a.segundosRevision)}</span>
-              </button>
-            </li>
-          )
-        )}
-      </ul>
+      {!datos ? (
+        <ul className="cc-rejilla" aria-hidden="true">
+          {Array.from({ length: 11 }, (_, i) => <li key={i} className="cc-agente cc-agente-esqueleto" />)}
+        </ul>
+      ) : (
+        <div className="cc-grupos">
+          {GRUPOS_AGENTES.map((g) => {
+            const suyos = agentes.filter((a) => (a.grupo || "supervision") === g.id);
+            if (!suyos.length) return null;
+            const peorGrupo = suyos.some((a) => a.estado === "ERROR") ? "error" : suyos.some((a) => a.estado === "AVISO") ? "aviso" : "ok";
+            return (
+              <section key={g.id} className="cc-grupo" aria-labelledby={`cc-g-${g.id}`}>
+                <header className="cc-grupo-cabecera">
+                  <span className={`cc-luz cc-luz-${peorGrupo}`} aria-hidden="true" />
+                  <h3 id={`cc-g-${g.id}`}>
+                    <span aria-hidden="true">{g.icono}</span> {g.nombre}
+                  </h3>
+                  {!compacto && <p className="dsh-muted">{g.descripcion}</p>}
+                </header>
+                <ul className="cc-rejilla" aria-label={`Agentes de ${g.nombre}`}>
+                  {suyos.map((a) => (
+                    <li key={a.id}>
+                      <button
+                        type="button"
+                        className={`cc-agente cc-agente-${LUZ[a.estado]}`}
+                        aria-pressed={seleccion === a.id}
+                        aria-label={`${a.nombre}: ${TEXTO_ESTADO[a.estado]}. ${a.mensaje}`}
+                        onClick={() => setSeleccion(seleccion === a.id ? null : a.id)}
+                      >
+                        <span className="cc-agente-fila">
+                          <span className={`cc-luz cc-luz-${LUZ[a.estado]}`} aria-hidden="true" />
+                          <span className="cc-agente-nombre"><span aria-hidden="true">{a.icono}</span> {a.nombre}</span>
+                          {a.abiertas > 0 && <span className="cc-contador" title="Averías abiertas">{a.abiertas}</span>}
+                        </span>
+                        {!compacto && <span className="cc-agente-hace">{a.descripcion}</span>}
+                        <span className="cc-agente-msg">{a.mensaje}</span>
+                        <span className="cc-agente-hora">{TEXTO_ESTADO[a.estado]} · {haceTiempo(a.segundosRevision)}</span>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+            );
+          })}
+        </div>
+      )}
 
       {elegido && <DetalleAgente key={elegido.id} agente={elegido} cola={datos?.cola} onCerrar={() => setSeleccion(null)} onCambio={() => recargar()} />}
     </section>

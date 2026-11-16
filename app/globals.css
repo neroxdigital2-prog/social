@@ -1787,3 +1787,16 @@ body { font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto
 .av-pausada { background: var(--color-surface) !important; }
 .av-pausada strong { color: var(--color-text-muted); }
 @media (max-width: 600px) { .av-lista > li { grid-template-columns: 48px 1fr; } .av-botones { grid-column: 1 / -1; justify-content: flex-start; } }
+
+/* Centro de control: grupos de agentes y reparación */
+.cc-grupos { display: grid; gap: 1rem; }
+.cc-grupo { display: grid; gap: 0.5rem; }
+.cc-grupo-cabecera { display: flex; flex-wrap: wrap; align-items: center; gap: 0.3rem 0.55rem; }
+.cc-grupo-cabecera h3 { margin: 0; font-size: 0.92rem; }
+.cc-grupo-cabecera p { margin: 0; flex-basis: 100%; font-size: 0.8rem; }
+.cc-agente-hace { font-size: 0.76rem; color: var(--color-text); opacity: 0.8; line-height: 1.3; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.cc-compacto .cc-agente { min-height: 84px; }
+.cc-reparar { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); gap: 0.45rem 1rem; margin: 0; padding: 0.65rem 0.8rem; border-radius: 10px; background: var(--dsh-fondo-suave); }
+.cc-reparar div { display: grid; gap: 0.1rem; min-width: 0; }
+.cc-reparar dt { font-size: 0.72rem; font-weight: 700; color: var(--color-text-muted); }
+.cc-reparar dd { margin: 0; font-size: 0.84rem; overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }

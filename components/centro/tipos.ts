@@ -4,6 +4,8 @@ export interface AgenteVista {
   id: string;
   nombre: string;
   icono: string;
+  grupo?: string;
+  repara?: { lugar: string; ruta: string; quien: string };
   descripcion: string;
   frecuencia: string;
   estado: EstadoAgente;
