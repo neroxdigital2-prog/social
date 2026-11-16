@@ -1755,3 +1755,35 @@ body { font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto
 .pa-ideas { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 0.3rem; max-height: 180px; overflow: auto; }
 .pa-ideas li { font-size: 0.76rem; padding: 0.2rem 0.55rem; border-radius: 999px; background: var(--color-surface); }
 .pa-idea-usada { opacity: 0.6; text-decoration: line-through; }
+
+/* ═══════════ Generador: apps en venta ═══════════ */
+.av { display: grid; gap: 1rem; }
+.av-cabecera { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.8rem; align-items: flex-start; }
+.av-cabecera h3 { margin: 0 0 0.2rem; }
+.av-cabecera p { margin: 0; font-size: 0.86rem; max-width: 60ch; }
+.av-nueva { display: inline-flex; align-items: center; gap: 0.4rem; }
+.av-form { display: grid; gap: 0.7rem; padding: 1rem; border: 1px solid hsl(240 6% 88%); border-radius: 12px; background: #fff; }
+.av-rejilla { display: grid; gap: 0.6rem; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); }
+.av-campo { display: grid; gap: 0.25rem; font-size: 0.78rem; color: var(--color-text-muted); }
+.av-campo input, .av-campo textarea { font: inherit; font-size: 0.88rem; padding: 0.5rem 0.6rem; border: 1px solid hsl(240 6% 85%); border-radius: 8px; color: var(--color-text); width: 100%; box-sizing: border-box; resize: vertical; }
+.av-campo input:focus-visible, .av-campo textarea:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 1px; }
+.av-mini { font-size: 0.78rem; color: var(--color-text-muted); }
+.av-capturas { display: grid; gap: 0.4rem; }
+.av-capturas ul { list-style: none; margin: 0; padding: 0; display: flex; flex-wrap: wrap; gap: 0.5rem; }
+.av-capturas li { position: relative; width: 72px; aspect-ratio: 9 / 16; }
+.av-capturas img { width: 100%; height: 100%; object-fit: cover; border-radius: 8px; display: block; }
+.av-capturas li > button:not(.av-subir) { position: absolute; top: 4px; right: 4px; width: 22px; height: 22px; display: grid; place-items: center; border-radius: 50%; border: 0; background: rgb(0 0 0 / 0.6); color: #fff; cursor: pointer; }
+.av-subir { width: 100%; height: 100%; display: grid; place-content: center; justify-items: center; gap: 0.2rem; border: 2px dashed hsl(240 5% 78%); border-radius: 8px; background: var(--color-surface); font: inherit; font-size: 0.72rem; color: var(--color-text-muted); cursor: pointer; }
+.av-subir:hover { border-color: var(--color-primary); }
+.av-lista { list-style: none; margin: 0; padding: 0; display: grid; gap: 0.6rem; }
+.av-lista > li { display: grid; grid-template-columns: 56px 1fr auto; gap: 0.8rem; align-items: center; padding: 0.6rem; border: 1px solid hsl(240 6% 88%); border-radius: 12px; background: #fff; }
+.av-lista > li > img, .av-lista .pa-miniatura { width: 56px; aspect-ratio: 9 / 16; object-fit: cover; border-radius: 8px; }
+.av-info { display: grid; gap: 0.15rem; min-width: 0; font-size: 0.86rem; }
+.av-info span { overflow-wrap: anywhere; }
+.av-info small { color: var(--color-text-muted); font-size: 0.76rem; }
+.av-botones { display: flex; flex-wrap: wrap; gap: 0.35rem; justify-content: flex-end; }
+.av-botones .crm-btn { display: inline-flex; align-items: center; gap: 0.3rem; }
+.av-borrar { color: hsl(0 70% 40%); }
+.av-pausada { background: var(--color-surface) !important; }
+.av-pausada strong { color: var(--color-text-muted); }
+@media (max-width: 600px) { .av-lista > li { grid-template-columns: 48px 1fr; } .av-botones { grid-column: 1 / -1; justify-content: flex-start; } }

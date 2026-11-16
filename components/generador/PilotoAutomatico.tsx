@@ -56,7 +56,7 @@ const FORMATOS: { id: FormatoAuto; texto: string }[] = [
   { id: "NADA", texto: "— Descanso" },
 ];
 const RED: Record<string, string> = { FACEBOOK: "Facebook", INSTAGRAM: "Instagram", GOOGLE: "Google Business", LINKEDIN: "LinkedIn", TWITTER: "X" };
-const HUECO: Record<string, string> = { PRINCIPAL: "Calendario", NOTICIA: "Noticia", HISTORIA: "Historia", CAMPANA: "Campaña" };
+const HUECO: Record<string, string> = { PRINCIPAL: "Calendario", NOTICIA: "Noticia", HISTORIA: "Historia", CAMPANA: "Campaña", APP: "App en venta" };
 const ESTADO: Record<string, string> = { GENERANDO: "⏳ Generando", LISTA: "✅ Programada", PENDIENTE_APROBACION: "🟡 Pendiente de aprobar", ERROR: "❌ Error" };
 
 const fechaCorta = (s: string) => `${NOMBRE_DIA[String(((new Date(s.replace(" ", "T")).getDay() + 6) % 7) + 1)]?.slice(0, 3)} ${s.slice(8, 10)}/${s.slice(5, 7)} ${s.slice(11, 16)}`;
@@ -326,6 +326,51 @@ export function PilotoAutomatico({ empresaId }: { empresaId: string }) {
             ))}
           </ul>
         )}
+      </fieldset>
+
+      {/* Promoción de apps en venta */}
+      <fieldset className="pa-bloque">
+        <legend>🛍️ Promoción de apps en venta (catálogo en la pestaña «Apps en venta»)</legend>
+        <label className="pa-chip">
+          <input type="checkbox" checked={config.promoApps.activa} onChange={(e) => setConfig({ ...config, promoApps: { ...config.promoApps, activa: e.target.checked } })} />
+          Promocionar una app por turnos (además del miércoles y el viernes del calendario)
+        </label>
+        <div className="pa-horas">
+          <label>
+            <span>Hora</span>
+            <input type="time" value={config.promoApps.hora} onChange={(e) => setConfig({ ...config, promoApps: { ...config.promoApps, hora: e.target.value } })} />
+          </label>
+          <label>
+            <span>Formato</span>
+            <select value={config.promoApps.formato} onChange={(e) => setConfig({ ...config, promoApps: { ...config.promoApps, formato: e.target.value as "ALTERNAR" | "REEL" | "HISTORIAS" } })}>
+              <option value="ALTERNAR">🔁 Alternar Reel e historias</option>
+              <option value="REEL">🎬 Siempre Reel 9:16</option>
+              <option value="HISTORIAS">📱 Siempre historias 9:16</option>
+            </select>
+          </label>
+          <label>
+            <span>Segundos del Reel</span>
+            <input type="number" min={18} max={55} value={config.promoApps.segundos} onChange={(e) => setConfig({ ...config, promoApps: { ...config.promoApps, segundos: Number(e.target.value) } })} />
+          </label>
+        </div>
+        <div className="pa-checks">
+          <span className="pa-mini">Días:</span>
+          {["1", "2", "3", "4", "5", "6", "7"].map((d) => (
+            <label key={d} className="pa-chip">
+              <input
+                type="checkbox"
+                checked={config.promoApps.dias.includes(Number(d))}
+                onChange={(e) =>
+                  setConfig({
+                    ...config,
+                    promoApps: { ...config.promoApps, dias: e.target.checked ? [...config.promoApps.dias, Number(d)].sort() : config.promoApps.dias.filter((x) => x !== Number(d)) },
+                  })
+                }
+              />
+              {NOMBRE_DIA[d].slice(0, 3)}
+            </label>
+          ))}
+        </div>
       </fieldset>
 
       {/* Campaña / cola de ideas */}

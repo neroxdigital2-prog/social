@@ -33,6 +33,47 @@ export interface ConfigAutoPiloto {
   plantilla: Record<string, DiaPlantilla>; // "1".."7"
   categorias: CategoriaNoticias[];
   campana: CampanaIdeas;
+  promoApps: PromoApps;
+}
+
+/** Promoción de las apps listas para vender (catálogo en Generador → Apps en venta). */
+export interface PromoApps {
+  activa: boolean;
+  hora: string;
+  dias: number[];
+  formato: "ALTERNAR" | "REEL" | "HISTORIAS";
+  segundos: number;
+}
+
+export interface AppVenta {
+  id: string;
+  nombre: string;
+  resumen: string | null;
+  problema: string | null;
+  publico: string | null;
+  funciones: string | null;
+  precio: string | null;
+  entrega: string | null;
+  demoUrl: string | null;
+  imagenes: string[];
+  palabraClave: string | null;
+  estado: "ACTIVA" | "PAUSADA";
+  vecesPromocionada: number;
+  ultimaPromocion: string | null;
+}
+
+/** Descripción de una app para que la IA la promocione sin inventar nada. */
+export function fichaApp(a: AppVenta): string {
+  return [
+    `App «${a.nombre}»${a.resumen ? `: ${a.resumen}` : ""}`,
+    a.problema ? `Problema que resuelve: ${a.problema}` : "",
+    a.publico ? `Para quién: ${a.publico}` : "",
+    a.funciones ? `Funciones: ${a.funciones.split("\n").map((f) => f.trim()).filter(Boolean).join("; ")}` : "",
+    a.precio ? `Precio: ${a.precio}` : "",
+    a.entrega ? `Entrega / puesta en marcha: ${a.entrega}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 /** Cola de ideas (campañas, ideas de ChatGPT vía Telegram /idea): una publicación distinta por idea. */
@@ -221,6 +262,7 @@ export const CONFIG_DEFECTO: ConfigAutoPiloto = {
   plantilla: PLANTILLA_DEFECTO,
   categorias: CATEGORIAS_DEFECTO,
   campana: CAMPANA_DEFECTO,
+  promoApps: { activa: true, hora: "12:30", dias: [2, 4, 6], formato: "ALTERNAR", segundos: 35 },
 };
 
 /** Completa una configuración guardada con los valores por defecto (por si faltan campos nuevos). */
@@ -241,6 +283,7 @@ export function normalizarConfig(c?: Partial<ConfigAutoPiloto> | null): ConfigAu
     diasNoticia: Array.isArray(c.diasNoticia) ? c.diasNoticia : base.diasNoticia,
     redes: Array.isArray(c.redes) ? c.redes : base.redes,
     diasAntelacion: Math.min(7, Math.max(1, Number(c.diasAntelacion) || base.diasAntelacion)),
+    promoApps: { ...base.promoApps, ...(c.promoApps || {}) },
     campana: { ...base.campana, ...(c.campana || {}), ideas: Array.isArray(c.campana?.ideas) ? c.campana!.ideas : base.campana.ideas },
   };
 }

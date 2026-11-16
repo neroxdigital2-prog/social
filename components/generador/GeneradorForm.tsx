@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { CreadorManual } from "@/components/generador/CreadorManual";
 import { PilotoAutomatico } from "@/components/generador/PilotoAutomatico";
+import { AppsVenta } from "@/components/generador/AppsVenta";
 
 interface EmpresaOpcion { id: string; nombre: string; }
 
@@ -21,7 +22,7 @@ export function GeneradorForm({
   const [tema, setTema] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [pestana, setPestana] = useState<"lote" | "manual" | "piloto">("manual");
+  const [pestana, setPestana] = useState<"lote" | "manual" | "piloto" | "apps">("manual");
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -63,11 +64,24 @@ export function GeneradorForm({
       <button type="button" role="tab" aria-selected={pestana === "piloto"} className="crm-pestana" onClick={() => setPestana("piloto")}>
         🤖 Piloto automático
       </button>
+      <button type="button" role="tab" aria-selected={pestana === "apps"} className="crm-pestana" onClick={() => setPestana("apps")}>
+        🛍️ Apps en venta
+      </button>
       <button type="button" role="tab" aria-selected={pestana === "lote"} className="crm-pestana" onClick={() => setPestana("lote")}>
         ⚡ Generar en lote con IA
       </button>
     </div>
   );
+
+  if (pestana === "apps") {
+    return (
+      <div className="auth-form">
+        {pestanas}
+        {selectorEmpresa}
+        {empresaId && <AppsVenta key={empresaId} empresaId={empresaId} />}
+      </div>
+    );
+  }
 
   if (pestana === "piloto") {
     return (

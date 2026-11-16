@@ -5,6 +5,7 @@ import { renderizarReel } from "@/lib/reel/render";
 
 export interface EntradaReel extends DatosGuion {
   imagenUrl: string | null;
+  imagenesPropias?: string[]; // capturas reales (apps en venta): se usan como escenas antes que el metraje de stock
 }
 
 export interface SalidaReel {
@@ -29,10 +30,22 @@ export async function generarReel(entrada: EntradaReel): Promise<SalidaReel> {
 
   const [voz, medios] = await Promise.all([
     generarVoz(guion.locucion),
-    buscarMedios(
-      guion.escenas.map((e) => e.busqueda),
-      entrada.imagenUrl
-    ),
+    entrada.imagenesPropias?.length
+      ? // Contenido 100 % original: capturas reales de la app, alternando con metraje si hay pocas
+        buscarMedios(
+          guion.escenas.map((e) => e.busqueda),
+          entrada.imagenUrl
+        ).then((stock) =>
+          guion.escenas.map((_, i) => {
+            const propias = entrada.imagenesPropias!;
+            if (propias.length >= guion.escenas.length || i % 2 === 0) return { tipo: "imagen" as const, url: propias[i % propias.length] };
+            return stock[i];
+          })
+        )
+      : buscarMedios(
+          guion.escenas.map((e) => e.busqueda),
+          entrada.imagenUrl
+        ),
   ]);
 
   const musicaUrl = elegirMusica();

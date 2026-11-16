@@ -8,7 +8,7 @@ import { generarReel } from "@/lib/reel";
 import { renderizarTarjeta } from "@/lib/reel/tarjeta";
 import { escaparHtml } from "@/lib/telegram";
 import { avisarYRegistrar, bridgeVigilante, esModoNoche } from "@/lib/vigilante";
-import { NOMBRE_DIA, normalizarConfig, type ConfigAutoPiloto, type DiaPlantilla } from "@/lib/autopiloto/plantilla";
+import { NOMBRE_DIA, fichaApp, normalizarConfig, type AppVenta, type ConfigAutoPiloto, type DiaPlantilla } from "@/lib/autopiloto/plantilla";
 import { buscarNoticias, type Noticia } from "@/lib/autopiloto/noticias";
 import { similitud, type Previa } from "@/lib/autopiloto/antiRepeticion";
 import { redactarHistoriaDiaria, redactarNoticia, redactarPrincipal, type PerfilAuto, type PublicacionAuto } from "@/lib/autopiloto/redactor";
@@ -17,7 +17,7 @@ const BRIDGE_SECRET = process.env.BRIDGE_SECRET || "";
 const MARGEN_MIN = 40; // no se preparan huecos que salen en menos de 40 min
 const PRESUPUESTO_MS = 170_000; // no se empieza un trabajo nuevo pasado este tiempo (límite Vercel 300 s)
 
-export type Hueco = "PRINCIPAL" | "NOTICIA" | "HISTORIA" | "CAMPANA";
+export type Hueco = "PRINCIPAL" | "NOTICIA" | "HISTORIA" | "CAMPANA" | "APP";
 
 export interface EmpresaAuto extends PerfilAuto {
   empresaId: string;
@@ -102,6 +102,7 @@ export async function huecosPendientes(e: EmpresaAuto, ahora = new Date()): Prom
     if (dia && dia.formato !== "NADA") add("PRINCIPAL", c.horaPrincipal, dia.formato);
     if (c.diasNoticia.includes(Number(diaSemana))) add("NOTICIA", c.horaNoticia, "IMAGEN");
     if (c.historiasDiarias && dia?.formato !== "HISTORIAS") add("HISTORIA", c.horaHistoria, "HISTORIA");
+    if (c.promoApps.activa && c.promoApps.dias.includes(Number(diaSemana))) add("APP", c.promoApps.hora, c.promoApps.formato);
     if (c.campana.activa && c.campana.ideas.length && c.campana.dias.includes(Number(diaSemana))) add("CAMPANA", c.campana.hora, c.campana.formato);
   }
   const limite = ahora.getTime() + MARGEN_MIN * 60_000;
@@ -214,8 +215,75 @@ export async function generarHueco(e: EmpresaAuto, h: HuecoPendiente, ctx: Conte
   if (reservaId === null) return null; // otro proceso ya lo está preparando
   const aprobacion = e.config.aprobacion;
   try {
+    if (h.hueco === "APP") {
+      const app = (await bridgeAuto<{ app: AppVenta | null }>("app_siguiente", { empresaId: e.empresaId }))?.app;
+      if (!app) throw new Error("No hay apps activas en el catálogo (Generador → 🛍️ Apps en venta).");
+      const promo = e.config.promoApps;
+      const formato = promo.formato === "ALTERNAR" ? (app.vecesPromocionada % 2 === 0 ? "REEL" : "HISTORIAS") : promo.formato;
+      const clave = app.palabraClave || "APP";
+      const dia: DiaPlantilla = {
+        formato,
+        objetivo: "Vender una app lista para entregar",
+        tema: `Promociona esta app lista para vender. Enfoque de ahorro de tiempo: el comprador se ahorra meses de desarrollo y problemas técnicos; la compra hoy y mañana sale al mercado. Empieza mostrando el resultado (la app funcionando) o el problema que resuelve. Usa SOLO estos datos, no inventes funciones ni precios:\n${fichaApp(app)}`,
+        cta: `Comenta ${clave} y te enseño la demo${app.precio ? " y el precio" : ""} por privado.`,
+        palabraClave: clave,
+        segundos: promo.segundos || 35,
+        diapositivas: formato === "HISTORIAS" ? 3 : 0,
+        reelPrueba: false,
+      };
+      const pub = await redactarPrincipal(e, dia, ctx.historial);
+      ctx.historial.unshift({ titulo: pub.titulo, texto: pub.texto });
+      const capturas = app.imagenes || [];
+      if (formato === "HISTORIAS") {
+        const fondoIA = capturas.length ? null : await imagen916(pub.imagenPrompt).catch(() => null);
+        const slides = pub.diapositivas.length ? pub.diapositivas : [{ titulo: app.nombre, texto: app.resumen || "" }];
+        const redes = redesPara(e, ctx, "HISTORIA");
+        let primeraId = "";
+        for (let i = 0; i < slides.length; i++) {
+          const ultima = i === slides.length - 1;
+          const url = await tarjeta({ fondoUrl: capturas[i % Math.max(1, capturas.length)] || fondoIA, titulo: slides[i].titulo, texto: slides[i].texto, marca: e.nombre, pie: ultima ? `Responde ${clave} y te paso la demo` : undefined, numero: `${i + 1}/${slides.length}` });
+          const rid = i === 0 ? reservaId : await reservar(e, h, `APP_${i + 1}`);
+          if (rid === null) continue;
+          const fechaProgramada = new Date(Date.parse(h.iso) + i * 2 * 60_000).toISOString();
+          const id = await crearPub(rid, e, h, { ...pub, titulo: `${pub.titulo} (${i + 1}/${slides.length})` }, "HISTORIA", redes, { imagenUrl: url, fechaProgramada });
+          await completar(rid, id, aprobacion, { imagenUrl: url, formato: "HISTORIA" });
+          if (i === 0) primeraId = id;
+        }
+        await bridgeAuto("app_promocionada", { id: app.id });
+        return { hueco: h.hueco, cuando, formato: `${slides.length} historias · ${app.nombre}`, ok: true, titulo: pub.titulo, publicacionId: primeraId, pendienteAprobacion: aprobacion };
+      }
+      const imagenUrl = capturas[0] || (await imagen916(pub.imagenPrompt));
+      const id = await crearPub(reservaId, e, h, pub, "VIDEO", redesPara(e, ctx, "VIDEO"), { imagenUrl });
+      const reel = await generarReel({ empresa: e.nombre, titulo: pub.titulo, texto: pub.texto, imagenPrompt: pub.imagenPrompt, imagenUrl, segundos: dia.segundos, cta: `Comenta ${clave}`, imagenesPropias: capturas });
+      const videoUrl = await subirVideo(reel.mp4);
+      await completar(reservaId, id, aprobacion, { videoUrl, imagenUrl, formato: "VIDEO" });
+      await bridgeAuto("app_promocionada", { id: app.id });
+      return { hueco: h.hueco, cuando, formato: `Reel ${Math.round(reel.segundos)} s · ${app.nombre}`, ok: true, titulo: pub.titulo, publicacionId: id, pendienteAprobacion: aprobacion };
+    }
+
     if (h.hueco === "PRINCIPAL") {
-      const dia = e.config.plantilla[h.diaSemana];
+      const diaBase = e.config.plantilla[h.diaSemana];
+      // Días de apps del calendario (APP / CATALOGO): se usan las apps reales del catálogo
+      let dia = diaBase;
+      let capturasApp: string[] = [];
+      let appPromocionada: string | null = null;
+      if (["APP", "CATALOGO"].includes((diaBase.palabraClave || "").toUpperCase())) {
+        const apps = (await bridgeAuto<AppVenta[]>("apps_listar", { empresaId: e.empresaId, soloActivas: true })) || [];
+        if (Array.isArray(apps) && apps.length) {
+          if (diaBase.palabraClave.toUpperCase() === "CATALOGO") {
+            const elegidas = [...apps].sort((a, b) => (a.ultimaPromocion || "").localeCompare(b.ultimaPromocion || "")).slice(0, 3);
+            dia = { ...diaBase, tema: `${diaBase.tema}\nApps reales del catálogo (usa solo estos datos):\n${elegidas.map(fichaApp).join("\n---\n")}` };
+            capturasApp = elegidas.flatMap((a) => a.imagenes.slice(0, 2));
+          } else {
+            const app = (await bridgeAuto<{ app: AppVenta | null }>("app_siguiente", { empresaId: e.empresaId }))?.app;
+            if (app) {
+              dia = { ...diaBase, tema: `${diaBase.tema}\nApp concreta a mostrar (usa solo estos datos):\n${fichaApp(app)}` };
+              capturasApp = app.imagenes;
+              appPromocionada = app.id;
+            }
+          }
+        }
+      }
       const pub = await redactarPrincipal(e, dia, ctx.historial);
       ctx.historial.unshift({ titulo: pub.titulo, texto: pub.texto });
 
@@ -250,9 +318,11 @@ export async function generarHueco(e: EmpresaAuto, h: HuecoPendiente, ctx: Conte
         segundos: dia.segundos || 30,
         cta: ctaCorta(dia),
         diapositivas: dia.formato === "CARRUSEL" ? pub.diapositivas : undefined,
+        imagenesPropias: capturasApp.length ? capturasApp : undefined,
       });
       const videoUrl = await subirVideo(reel.mp4);
       await completar(reservaId, id, aprobacion, { videoUrl, imagenUrl, formato: "VIDEO" });
+      if (appPromocionada) await bridgeAuto("app_promocionada", { id: appPromocionada });
       return {
         hueco: h.hueco,
         cuando,
@@ -354,7 +424,7 @@ export async function ejecutarAutopiloto(base: string, opciones: { empresaId?: s
     for (const h of huecos) {
       if (Date.now() - inicio > PRESUPUESTO_MS || trabajos >= (opciones.maxTrabajos ?? 6)) break;
       // Un vídeo tarda 1-2 min: si no queda margen, se deja para la siguiente pasada
-      if (((h.hueco === "PRINCIPAL" && h.formato !== "HISTORIAS") || (h.hueco === "CAMPANA" && h.formato === "REEL")) && Date.now() - inicio > 60_000) continue;
+      if (((h.hueco === "PRINCIPAL" && h.formato !== "HISTORIAS") || ((h.hueco === "CAMPANA" || h.hueco === "APP") && h.formato !== "IMAGEN" && h.formato !== "HISTORIAS")) && Date.now() - inicio > 60_000) continue;
       trabajos++;
       const r = await generarHueco(e, h, ctx);
       if (r) propios.push(r);
